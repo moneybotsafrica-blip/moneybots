@@ -1,0 +1,15 @@
+.env
+db.sqlite3
+__pycache__/
+*.pyc
+staticfiles/
+ml_models/*.joblib
+ml_models/*.keras
+var/
+venv/
+.venv/
+news_cache.pkl
+
+# Licensed TradingView Charting Library — re-drop the extracted package
+# into static/charting_library/ locally, don't commit it. See README.md.
+static/charting_library/

@@ -1,0 +1,90 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Moneybots - AI Trading Terminal{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ff6a00'/%3E%3Cpath d='M8 10L8 22L12 22L12 14L16 18L20 14L20 22L24 22L24 10L20 10L16 14L12 10L8 10Z' fill='white'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=12">
+    <script>
+        /* Must run before any content-block script (e.g. the chart page's
+           inline initDerivChart call), which relies on these globals being
+           set already. Keeping this in <head> instead of the end of <body>
+           guarantees that ordering. */
+        window.DERIV_APP_ID = "1089";  // Force public app_id
+        window.DERIV_API_TOKEN = "";
+        window.AI_ENABLED = {% if ai_enabled %}true{% else %}false{% endif %};
+        window.CHARTING_LIBRARY_PATH = "{% static 'charting_library/' %}";
+    </script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="page-{{ active_nav|default:'default' }}">
+    {% include "dashboard/_nav.html" %}
+    
+    {% if active_nav == "dashboard" %}
+    <!-- This external ticker is only used on the chart dashboard. Keeping it
+       off the Signals page prevents its third-party embed parser from adding
+       a console syntax error to the market scanner. -->
+    <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+        {
+        "symbols": [
+            { "proName": "FOREXCOM:SPXUSD", "title": "S&P 500" },
+            { "proName": "FOREXCOM:NSXUSD", "title": "US 100" },
+            { "proName": "FOREXCOM:DJI", "title": "Dow Jones" },
+            { "proName": "FOREXCOM:UKXGBP", "title": "UK 100" },
+            { "proName": "FOREXCOM:DEUIDXEUR", "title": "Germany 40" },
+            { "description": "EUR/USD", "proName": "FX:EURUSD" },
+            { "description": "GBP/USD", "proName": "FX:GBPUSD" },
+            { "description": "USD/JPY", "proName": "FX:USDJPY" },
+            { "description": "USD/CHF", "proName": "FX:USDCHF" },
+            { "description": "AUD/USD", "proName": "FX:AUDUSD" },
+            { "description": "USD/CAD", "proName": "FX:USDCAD" },
+            { "description": "NZD/USD", "proName": "FX:NZDUSD" },
+            { "description": "EUR/GBP", "proName": "FX:EURGBP" },
+            { "description": "EUR/JPY", "proName": "FX:EURJPY" },
+            { "description": "Gold", "proName": "TVC:GOLD" },
+            { "description": "Silver", "proName": "TVC:SILVER" },
+            { "description": "Crude Oil", "proName": "TVC:USOIL" },
+            { "description": "Brent Oil", "proName": "TVC:UKOIL" },
+            { "description": "Bitcoin", "proName": "BINANCE:BTCUSDT" },
+            { "description": "Ethereum", "proName": "BINANCE:ETHUSDT" }
+        ],
+        "showSymbolLogo": true,
+        "colorTheme": "light",
+        "isTransparent": false,
+        "displayMode": "adaptive",
+        "locale": "en"
+        }
+        </script>
+    </div>
+    {% endif %}
+    
+    {% block content %}{% endblock %}
+    {% if active_nav == "dashboard" or active_nav == "stocks" %}
+    {% include "dashboard/_brain_widget.html" %}
+    {% endif %}
+    {% if active_nav == "dashboard" %}
+    {% include "dashboard/_scanner_widget.html" %}
+    {% endif %}
+
+    <script src="{% static 'js/price-feed.js' %}?v=2"></script>
+    <script src="{% static 'js/analysis.js' %}"></script>
+    
+    {% if active_nav == "dashboard" %}
+    <script src="{% static 'js/signal_news.js' %}"></script>
+    <script src="{% static 'js/brain.js' %}?v=2"></script>
+    <script src="{% static 'js/scanner.js' %}?v=21"></script>
+    {% endif %}
+    {% if active_nav == "stocks" %}
+    <script src="{% static 'js/brain.js' %}?v=2"></script>
+    {% endif %}
+    {% if active_nav == "terminal" %}
+    <script src="{% static 'js/signals_terminal.js' %}"></script>
+    {% endif %}
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

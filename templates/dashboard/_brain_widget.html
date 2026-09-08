@@ -1,0 +1,169 @@
+{% load static %}
+{% if ai_enabled %}
+<button id="brain-fab" class="brain-fab" type="button" aria-label="Open AI chart panel" title="AI chart insight &amp; chat">
+    <img src="{% static 'img/brain-icon.png' %}" alt="" class="brain-fab-icon">
+</button>
+
+<aside id="brain-panel" class="brain-panel" aria-hidden="true">
+    <div class="brain-panel-header">
+        <div class="brain-panel-title">
+            <span class="brain-dot"></span> AI Chart Panel
+        </div>
+        <button id="brain-close" class="brain-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <div class="brain-panel-sub">Context-aware on <strong id="brain-current-symbol">—</strong></div>
+
+    <div class="brain-tabs">
+        <button type="button" class="brain-tab active" id="brain-tab-insight" data-tab="insight">Insight</button>
+        <button type="button" class="brain-tab" id="brain-tab-analysis" data-tab="analysis">Analysis</button>
+        <button type="button" class="brain-tab" id="brain-tab-gaps" data-tab="gaps">Gap Analysis</button>
+        <button type="button" class="brain-tab" id="brain-tab-chat" data-tab="chat">Chat</button>
+    </div>
+
+    <div class="brain-tab-panel" id="brain-panel-insight">
+        <div class="scroll-panel ai-insight-panel">
+            <div class="ai-insight-card" id="ai-insight-card">
+                <div class="ai-insight-headline">
+                    <span class="dir-badge neutral" id="ai-dir-badge">—</span>
+                    <span id="ai-market-name">Select a market</span>
+                    <span class="count ai-updated" id="ai-updated">—</span>
+                </div>
+                <div class="ai-metric-grid">
+                    <div class="ai-metric"><span class="ai-metric-label">Price</span><span class="ai-metric-value" id="m-price">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Signal Strength</span><span class="ai-metric-value" id="m-strength">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Opportunity</span><span class="ai-metric-value" id="m-opportunity">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">RSI (14)</span><span class="ai-metric-value" id="m-rsi">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">ATR</span><span class="ai-metric-value" id="m-atr">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Risk Level</span><span class="ai-metric-value" id="m-risk">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Stop Loss</span><span class="ai-metric-value" id="m-sl">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Take Profit</span><span class="ai-metric-value" id="m-tp">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Risk:Reward</span><span class="ai-metric-value" id="m-rr">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Model Confidence</span><span class="ai-metric-value" id="m-conf">—</span></div>
+                </div>
+                <div class="ai-insight-note" id="ai-insight-empty">
+                    Waiting for the analysis loop (<code>python manage.py run_analysis</code>) to publish a signal for this market…
+                </div>
+            </div>
+
+            <div class="ai-news-card" id="ai-news-card">
+                <div class="ai-news-header">
+                    <span class="ai-news-title">Markets with News</span>
+                    <span class="conn-dot" id="ai-news-dot"></span>
+                </div>
+                <div class="ai-news-markets" id="ai-news-markets">
+                    <div class="ai-news-empty">Loading markets with news...</div>
+                </div>
+                <div class="ai-news-list" id="ai-news-list" style="display:none;">
+                    <button type="button" class="ai-news-back-btn" id="ai-news-back-btn">← Back to Markets</button>
+                    <div class="ai-news-empty">Select a market to see related economic events.</div>
+                </div>
+                <button type="button" class="ask-ai-btn" id="analyze-news-btn" style="display:none;">Analyze Market News</button>
+            </div>
+
+            <button type="button" class="ask-ai-btn" id="ask-ai-btn">Ask AI about this chart →</button>
+            <p class="ai-disclaimer">Technical analysis only — not financial advice. Synthetic indices are randomised instruments, not real markets.</p>
+        </div>
+    </div>
+
+    <div class="brain-tab-panel" id="brain-panel-analysis" hidden>
+        <div class="ai-analysis-panel">
+            <button type="button" class="ask-ai-btn" id="run-ai-analysis">Run AI analysis</button>
+            <div id="ai-analysis-status" class="ai-analysis-status">Uses the open chart’s live price and candles.</div>
+            <div class="ai-analysis-card" id="ai-analysis-card" hidden>
+                <div class="ai-insight-headline">
+                    <span class="dir-badge neutral" id="ai-analysis-bias">—</span>
+                    <span id="ai-analysis-conf">—</span>
+                </div>
+                <p class="ai-analysis-summary" id="ai-analysis-summary"></p>
+                <div class="ai-metric-grid">
+                    <div class="ai-metric"><span class="ai-metric-label">Support</span><span class="ai-metric-value" id="ai-an-support">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Resistance</span><span class="ai-metric-value" id="ai-an-resist">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Stop</span><span class="ai-metric-value" id="ai-an-stop">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Target</span><span class="ai-metric-value" id="ai-an-target">—</span></div>
+                </div>
+                <p class="ai-analysis-setup" id="ai-analysis-setup"></p>
+                <p class="ai-analysis-risks" id="ai-analysis-risks"></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="brain-tab-panel" id="brain-panel-gaps" hidden>
+        <div class="ai-gaps-panel">
+            <button type="button" class="ask-ai-btn" id="run-gap-analysis">Analyze Stock Gaps</button>
+            <button type="button" class="ask-ai-btn" id="run-stock-analysis">Full Stock Analysis</button>
+            <div id="gap-analysis-status" class="ai-analysis-status">Detects price gaps in stock historical data.</div>
+            <div class="ai-analysis-card" id="gap-analysis-card" hidden>
+                <div class="ai-insight-headline">
+                    <span class="dir-badge neutral" id="gap-bias">—</span>
+                    <span id="gap-summary">—</span>
+                </div>
+                <div class="ai-metric-grid">
+                    <div class="ai-metric"><span class="ai-metric-label">Total Gaps</span><span class="ai-metric-value" id="gap-total">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Gap Ups</span><span class="ai-metric-value" id="gap-ups">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Gap Downs</span><span class="ai-metric-value" id="gap-downs">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Fill Rate</span><span class="ai-metric-value" id="gap-fill-rate">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Avg Gap Size</span><span class="ai-metric-value" id="gap-avg-size">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Avg Gap %</span><span class="ai-metric-value" id="gap-avg-pct">—</span></div>
+                </div>
+                <div class="gap-table-container">
+                    <table class="gap-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Size</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gap-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="ai-analysis-card" id="stock-analysis-card" hidden>
+                <div class="ai-insight-headline">
+                    <span class="dir-badge neutral" id="stock-bias">—</span>
+                    <span id="stock-summary">—</span>
+                </div>
+                <div class="ai-metric-grid">
+                    <div class="ai-metric"><span class="ai-metric-label">Current Price</span><span class="ai-metric-value" id="stock-price">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Day Change</span><span class="ai-metric-value" id="stock-change">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Volume</span><span class="ai-metric-value" id="stock-volume">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">High</span><span class="ai-metric-value" id="stock-high">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Low</span><span class="ai-metric-value" id="stock-low">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Market Cap</span><span class="ai-metric-value" id="stock-marketcap">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">P/E Ratio</span><span class="ai-metric-value" id="stock-pe">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">52W High</span><span class="ai-metric-value" id="stock-52high">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">52W Low</span><span class="ai-metric-value" id="stock-52low">—</span></div>
+                </div>
+                <div class="ai-metric-grid">
+                    <div class="ai-metric"><span class="ai-metric-label">MA 50</span><span class="ai-metric-value" id="stock-ma50">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">MA 200</span><span class="ai-metric-value" id="stock-ma200">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">RSI (14)</span><span class="ai-metric-value" id="stock-rsi">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Support</span><span class="ai-metric-value" id="stock-support">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Resistance</span><span class="ai-metric-value" id="stock-resistance">—</span></div>
+                    <div class="ai-metric"><span class="ai-metric-label">Trend</span><span class="ai-metric-value" id="stock-trend">—</span></div>
+                </div>
+                <div class="stock-analysis-details" id="stock-analysis-details"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="brain-tab-panel" id="brain-panel-chat" hidden>
+        <div class="brain-messages" id="brain-messages">
+            <div class="brain-msg brain-msg-ai">
+                Hi — I can see the chart, signal strength, RSI/ATR, gap analysis, and comprehensive stock metrics for whatever market you're viewing. Ask me anything about it.
+            </div>
+        </div>
+        <form class="brain-input-row" id="brain-form">
+            <input type="text" id="brain-input" placeholder="Ask about this chart…" autocomplete="off" />
+            <button type="submit" class="brain-send" aria-label="Send">↑</button>
+        </form>
+    </div>
+</aside>
+{% else %}
+<button id="brain-fab" class="brain-fab brain-fab-disabled" type="button" title="Set GROQ_API_KEY or ANTHROPIC_API_KEY in .env to enable the AI chart panel">
+    <img src="{% static 'img/brain-icon.png' %}" alt="" class="brain-fab-icon">
+</button>
+{% endif %}

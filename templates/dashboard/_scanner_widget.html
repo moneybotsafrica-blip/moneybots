@@ -1,0 +1,37 @@
+{% load static %}
+<button id="scanner-fab" class="scanner-fab" type="button" aria-label="Open AI Pattern Scanner" title="AI Pattern Scanner">
+    <img src="{% static 'img/electricity-computer-icons-symbol-company-electrician-electric-removebg-preview.png' %}" alt="" class="scanner-fab-icon">
+    <div class="scanner-lightning-effect"></div>
+</button>
+
+<div id="scanner-modal" class="scanner-modal scanner-rebuilt" aria-hidden="true">
+    <div class="scanner-modal-backdrop"></div>
+    <section class="scanner-modal-content" role="dialog" aria-modal="true" aria-labelledby="scanner-title">
+        <header class="scanner-modal-header">
+            <div class="scanner-modal-title">
+                <span class="scanner-dot"></span>
+                <span id="scanner-title">AI Pattern Scanner</span>
+            </div>
+            <button id="scanner-close" class="scanner-close" type="button" aria-label="Close scanner">&times;</button>
+        </header>
+
+        <div class="scanner-modal-body">
+            <div class="scanner-controls">
+                <div class="scanner-mode-switch" role="group" aria-label="Scanner mode">
+                    <button type="button" data-scanner-mode="scalp">Scalping</button>
+                    <button type="button" data-scanner-mode="day" class="active">Day</button>
+                    <button type="button" data-scanner-mode="swing">Swing</button>
+                </div>
+                <div class="scanner-actions">
+                    <button id="scan-chart-btn" class="scan-btn primary" type="button">Scan Chart</button>
+                    <button id="auto-scan-btn" class="scan-btn auto" type="button" aria-pressed="false">Auto: Off</button>
+                </div>
+            </div>
+
+            <div class="scanner-results">
+                <div class="scanner-status" id="scanner-status" role="status">Select a market and scan for patterns</div>
+                <div class="scanner-entries" id="scanner-entries"></div>
+            </div>
+        </div>
+    </section>
+</div>

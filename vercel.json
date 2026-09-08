@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "manage.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "15mb",
+        "runtime": "python3.9"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/media/(.*)",
+      "dest": "/media/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "manage.py"
+    }
+  ],
+  "env": {
+    "DEBUG": "False",
+    "SECRET_KEY": "@secret_key",
+    "ALLOWED_HOSTS": "@allowed_hosts",
+    "DERIV_APP_ID": "@deriv_app_id",
+    "DERIV_API_TOKEN": "@deriv_api_token",
+    "ANTHROPIC_API_KEY": "@anthropic_api_key",
+    "GROQ_API_KEY": "@groq_api_key",
+    "GOOGLE_OAUTH_CLIENT_ID": "@google_oauth_client_id",
+    "GOOGLE_OAUTH_CLIENT_SECRET": "@google_oauth_client_secret",
+    "SITE_DOMAIN": "@site_domain"
+  }
+}

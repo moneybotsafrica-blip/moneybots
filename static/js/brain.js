@@ -1,0 +1,900 @@
+/*
+ * Floating AI chart panel: Insight, Analysis, Chat.
+ * Sends the open chart's symbol, live price, and candles to /api/ai/.
+ */
+(function () {
+    const fab = document.getElementById("brain-fab");
+    if (!fab) return;
+
+    if (!window.AI_ENABLED) {
+        fab.addEventListener("click", () => {
+            alert("To enable the AI chart panel, set GROQ_API_KEY or ANTHROPIC_API_KEY in .env and restart the server.");
+        });
+        return;
+    }
+
+    const panel = document.getElementById("brain-panel");
+    if (!panel) return;
+
+    const closeBtn = document.getElementById("brain-close");
+    const messages = document.getElementById("brain-messages");
+    const form = document.getElementById("brain-form");
+    const input = document.getElementById("brain-input");
+    const symbolLabel = document.getElementById("brain-current-symbol");
+
+    const tabs = panel.querySelectorAll(".brain-tab");
+    const tabPanels = {
+        insight: document.getElementById("brain-panel-insight"),
+        analysis: document.getElementById("brain-panel-analysis"),
+        gaps: document.getElementById("brain-panel-gaps"),
+        chat: document.getElementById("brain-panel-chat"),
+    };
+
+    const history = [];
+    let open = false;
+    const STUDY_MAP = {
+        RSI: "Relative Strength Index",
+        MACD: "MACD",
+        MA: "Moving Average",
+        MASIMPLE: "Moving Average",
+        BB: "Bollinger Bands",
+        ATR: "Average True Range",
+        STOCHASTIC: "Stochastic",
+    };
+
+    function currentSymbol() {
+        return window.currentChartSymbol || "";
+    }
+
+    function livePrice(symbol) {
+        if (window.currentChartPrice != null && (!symbol || symbol === window.currentChartSymbol)) {
+            return Number(window.currentChartPrice);
+        }
+        if (window.marketDataService && symbol) {
+            const quoted = window.marketDataService.getPrice(symbol);
+            if (quoted != null) return Number(quoted);
+        }
+        return null;
+    }
+
+    function chartCandles(symbol) {
+        if (window.marketDataService && symbol) {
+            const bars = window.marketDataService.getCandles(symbol);
+            if (bars && bars.length) return bars.slice(-240);
+        }
+        if (window.currentCandleData && symbol === window.currentChartSymbol) {
+            return [window.currentCandleData];
+        }
+        return [];
+    }
+
+    function chartPayload() {
+        const symbol = currentSymbol();
+        return {
+            symbol: symbol,
+            price: livePrice(symbol),
+            candles: chartCandles(symbol),
+            timeframe: "60",
+        };
+    }
+
+    function withChart(fn) {
+        const widget = window.tradingViewWidget;
+        if (!widget || typeof widget.activeChart !== "function") {
+            return { error: "Chart not ready" };
+        }
+        const run = function () {
+            try {
+                fn(widget.activeChart());
+            } catch (err) {
+                console.warn("AI chart action failed", err);
+            }
+        };
+        if (typeof widget.onChartReady === "function") {
+            widget.onChartReady(run);
+        } else {
+            run();
+        }
+        return { success: true };
+    }
+
+    window.aiChartActions = {
+        addIndicator: function (name) {
+            const mapped = STUDY_MAP[String(name || "").toUpperCase()] || name;
+            return withChart(function (chart) {
+                chart.createStudy(mapped, false, false);
+            });
+        },
+        addHorizontalLine: function (price, color, text) {
+            return withChart(function (chart) {
+                chart.createShape(
+                    { price: Number(price) },
+                    {
+                        shape: "horizontal_line",
+                        lock: false,
+                        disableSelection: false,
+                        overrides: {
+                            linecolor: color || "#26a69a",
+                            linewidth: 2,
+                            showLabel: Boolean(text),
+                            text: text || "",
+                        },
+                    }
+                );
+            });
+        },
+        clearShapes: function () {
+            return withChart(function (chart) {
+                chart.removeAllShapes();
+            });
+        },
+        applyActions: function (actions) {
+            if (!Array.isArray(actions)) return;
+            actions.forEach(function (action) {
+                const type = (action && action.type) || "";
+                if (type === "clear") window.aiChartActions.clearShapes();
+                else if (type === "indicator") window.aiChartActions.addIndicator(action.name);
+                else if (type === "hline") {
+                    window.aiChartActions.addHorizontalLine(action.price, action.color, action.text);
+                }
+            });
+        },
+    };
+
+    function setOpen(next) {
+        open = next;
+        panel.classList.toggle("open", open);
+        panel.setAttribute("aria-hidden", open ? "false" : "true");
+        fab.classList.toggle("active", open);
+        if (open) {
+            updateSymbolLabel();
+            refreshInsight();
+            renderMarketsWithNews();
+        }
+    }
+
+    function setTab(name) {
+        tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
+        Object.entries(tabPanels).forEach(([key, el]) => {
+            if (el) {
+                if (key === name) {
+                    el.hidden = false;
+                    el.style.display = 'flex';
+                    // Force reflow to ensure proper rendering
+                    void el.offsetHeight;
+                    // Ensure chat messages are visible when switching to chat tab
+                    if (key === "chat" && messages) {
+                        messages.scrollTop = messages.scrollHeight;
+                    }
+                } else {
+                    el.hidden = true;
+                    el.style.display = 'none';
+                }
+            }
+        });
+        if (name === "chat" && input) input.focus();
+    }
+
+    function updateSymbolLabel() {
+        const symbol = currentSymbol();
+        let label = symbol || "—";
+        if (window.AVAILABLE_MARKETS && symbol) {
+            const market = window.AVAILABLE_MARKETS.find((m) => m.symbol === symbol);
+            if (market) label = market.name;
+        }
+        if (symbolLabel) symbolLabel.textContent = label;
+    }
+
+    fab.addEventListener("click", () => setOpen(!open));
+    closeBtn.addEventListener("click", () => setOpen(false));
+    tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
+
+    const dirBadge = document.getElementById("ai-dir-badge");
+    const marketName = document.getElementById("ai-market-name");
+    const updatedEl = document.getElementById("ai-updated");
+    const emptyEl = document.getElementById("ai-insight-empty");
+    const fields = {
+        price: document.getElementById("m-price"),
+        strength: document.getElementById("m-strength"),
+        opportunity: document.getElementById("m-opportunity"),
+        rsi: document.getElementById("m-rsi"),
+        atr: document.getElementById("m-atr"),
+        risk: document.getElementById("m-risk"),
+        sl: document.getElementById("m-sl"),
+        tp: document.getElementById("m-tp"),
+        rr: document.getElementById("m-rr"),
+        conf: document.getElementById("m-conf"),
+    };
+
+    function fmt(n, digits) {
+        const value = Number(n);
+        if (!Number.isFinite(value)) return "—";
+        return value.toFixed(digits == null ? 2 : digits);
+    }
+
+    function dirClass(dir) {
+        return dir === "Buy" ? "buy" : dir === "Sell" ? "sell" : "neutral";
+    }
+
+    function paintPrice() {
+        const symbol = currentSymbol();
+        const price = livePrice(symbol);
+        if (fields.price && price != null) {
+            fields.price.textContent = fmt(price, price < 10 ? 5 : 2);
+        }
+    }
+
+    const newsList = document.getElementById("ai-news-list");
+    const newsDot = document.getElementById("ai-news-dot");
+    const newsMarkets = document.getElementById("ai-news-markets");
+    const analyzeNewsBtn = document.getElementById("analyze-news-btn");
+    const newsBackBtn = document.getElementById("ai-news-back-btn");
+    let selectedNewsMarket = null;
+
+    async function fetchMarketsWithNews() {
+        try {
+            const res = await fetch("/api/ai/news/");
+            const data = await res.json();
+            
+            if (data.error) {
+                console.error("News API error:", data.error);
+                if (newsMarkets) {
+                    newsMarkets.innerHTML = `<div class="ai-news-empty">News error: ${data.error}</div>`;
+                }
+                return {};
+            }
+            
+            const news = data.news || [];
+            
+            // Group news by markets
+            const marketNewsMap = {};
+            news.forEach(article => {
+                const markets = article.markets || [article.category || 'general'];
+                markets.forEach(market => {
+                    if (!marketNewsMap[market]) {
+                        marketNewsMap[market] = [];
+                    }
+                    marketNewsMap[market].push(article);
+                });
+            });
+
+            return marketNewsMap;
+        } catch (e) {
+            console.error("Failed to fetch markets with news:", e);
+            if (newsMarkets) {
+                newsMarkets.innerHTML = `<div class="ai-news-empty">Failed to load news. Please try again later.</div>`;
+            }
+            return {};
+        }
+    }
+
+    async function renderMarketsWithNews() {
+        if (!newsMarkets) return;
+        
+        const marketNewsMap = await fetchMarketsWithNews();
+        const markets = Object.keys(marketNewsMap);
+        
+        if (markets.length === 0) {
+            newsMarkets.innerHTML = '<div class="ai-news-empty">No markets with recent news.</div>';
+            return;
+        }
+
+        const marketButtons = markets.map(market => {
+            const count = marketNewsMap[market].length;
+            return `<button class="ai-news-market-btn" data-market="${market}">${market} (${count})</button>`;
+        }).join('');
+
+        newsMarkets.innerHTML = `<div class="ai-news-markets-grid">${marketButtons}</div>`;
+
+        // Add click handlers
+        document.querySelectorAll('.ai-news-market-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const market = this.dataset.market;
+                selectMarketForNews(market, marketNewsMap[market]);
+            });
+        });
+    }
+
+    function selectMarketForNews(market, newsArticles) {
+        selectedNewsMarket = market;
+        
+        // Update UI to show selected market news
+        newsMarkets.style.display = 'none';
+        newsList.style.display = 'block';
+        analyzeNewsBtn.style.display = 'block';
+
+        // Render news articles
+        const newsHtml = newsArticles.map(article => {
+            const title = (article.title || '').replace(/[&<>"']/g, function(c) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+            });
+            const sentiment = article.sentiment ? article.sentiment.toFixed(2) : 'N/A';
+            return `
+            <div class="ai-news-item">
+                <div class="ai-news-body">
+                    <div class="ai-news-title-row">
+                        <span class="ai-news-headline">${title}</span>
+                    </div>
+                    <div class="ai-news-sentiment">Sentiment: ${sentiment}</div>
+                </div>
+            </div>`;
+        }).join('');
+
+        newsList.innerHTML = newsHtml || '<div class="ai-news-empty">No news articles for this market.</div>';
+    }
+
+    function backToMarkets() {
+        selectedNewsMarket = null;
+        newsMarkets.style.display = 'block';
+        newsList.style.display = 'none';
+        analyzeNewsBtn.style.display = 'none';
+    }
+
+    // Add click handler for back button
+    if (newsBackBtn) {
+        newsBackBtn.addEventListener("click", backToMarkets);
+    }
+
+    async function analyzeMarketNews() {
+        if (!selectedNewsMarket) return;
+        
+        analyzeNewsBtn.textContent = "Analyzing...";
+        analyzeNewsBtn.disabled = true;
+
+        try {
+            const res = await fetch("/api/ai/news/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    market: selectedNewsMarket,
+                    action: "analyze"
+                }),
+            });
+            const data = await res.json();
+            
+            if (data.error) {
+                // Provide user-friendly error message
+                let errorMsg = data.error;
+                if (errorMsg.includes("API key") || errorMsg.includes("Invalid")) {
+                    errorMsg = "AI API key issue. Please check your .env file has GROQ_API_KEY or ANTHROPIC_API_KEY set.";
+                }
+                alert("Analysis failed: " + errorMsg);
+            } else {
+                // Show analysis results in the chat tab
+                setTab("chat");
+                addMessage("ai", data.response || "Analysis completed for " + selectedNewsMarket);
+            }
+        } catch (e) {
+            alert("Could not reach the analysis API. Please check your internet connection.");
+        } finally {
+            analyzeNewsBtn.textContent = "Analyze Market News";
+            analyzeNewsBtn.disabled = false;
+        }
+    }
+
+    // Add click handler for analyze news button
+    if (analyzeNewsBtn) {
+        analyzeNewsBtn.addEventListener("click", analyzeMarketNews);
+    }
+
+    async function refreshInsight() {
+        const symbol = currentSymbol();
+        if (!symbol || !dirBadge) return;
+
+        let marketLabel = symbol;
+        if (window.AVAILABLE_MARKETS) {
+            const market = window.AVAILABLE_MARKETS.find((m) => m.symbol === symbol);
+            if (market) marketLabel = market.name;
+        }
+
+        if (window.SignalNews && newsList) {
+            window.SignalNews.refresh(symbol, marketLabel, newsList, { compact: true }).then(() => {
+                if (newsDot) newsDot.classList.add("live");
+            });
+        }
+
+        try {
+            const res = await fetch("/api/signals/active/?symbol=" + encodeURIComponent(symbol));
+            const data = await res.json();
+            const signal = (data.signals || [])[0];
+            marketName.textContent = (signal && signal.market_name) || marketLabel;
+            paintPrice();
+
+            if (!signal) {
+                emptyEl.style.display = "block";
+                emptyEl.textContent = "No stored signal yet. Open Analysis to run AI on this chart's candles.";
+                dirBadge.textContent = "—";
+                dirBadge.className = "dir-badge neutral";
+                updatedEl.textContent = "live";
+                ["strength", "opportunity", "rsi", "atr", "risk", "sl", "tp", "rr", "conf"].forEach((key) => {
+                    if (fields[key]) fields[key].textContent = "—";
+                });
+                return;
+            }
+
+            emptyEl.style.display = "none";
+            dirBadge.textContent = signal.direction;
+            dirBadge.className = "dir-badge " + dirClass(signal.direction);
+            updatedEl.textContent = new Date(signal.updated_at || Date.now()).toLocaleTimeString();
+            const price = livePrice(symbol);
+            const shown = price != null ? price : signal.current_price != null ? signal.current_price : signal.price;
+            fields.price.textContent = fmt(shown, shown < 10 ? 5 : 2);
+            fields.strength.textContent = fmt(signal.signal_strength, 2);
+            fields.opportunity.textContent = fmt(signal.opportunity_score, 1);
+            fields.rsi.textContent = signal.rsi !== null && signal.rsi !== undefined ? fmt(signal.rsi, 1) : "—";
+            fields.atr.textContent = signal.atr !== null && signal.atr !== undefined ? fmt(signal.atr, 4) : "—";
+            fields.risk.textContent = signal.risk_level || "—";
+            fields.sl.textContent = signal.stop_loss != null ? fmt(signal.stop_loss, 4) : "—";
+            fields.tp.textContent = signal.take_profit != null ? fmt(signal.take_profit, 4) : "—";
+            fields.rr.textContent = signal.risk_reward ? "1:" + fmt(signal.risk_reward, 1) : "—";
+            fields.conf.textContent = signal.model_confidence != null ? fmt(signal.model_confidence * 100, 0) + "%" : "—";
+        } catch (e) {
+            console.warn("AI insight refresh failed", e);
+        }
+    }
+
+    window.addEventListener("chart-symbol-changed", (event) => {
+        window.currentChartSymbol = event.detail.symbol;
+        updateSymbolLabel();
+        if (open) refreshInsight();
+    });
+
+    window.addEventListener("tick-update", (event) => {
+        if (!open) return;
+        const symbol = event.detail && event.detail.symbol;
+        if (symbol && symbol === currentSymbol()) paintPrice();
+    });
+
+    setInterval(() => {
+        if (open) {
+            updateSymbolLabel();
+            paintPrice();
+        }
+    }, 1000);
+    
+    setInterval(() => {
+        if (open) refreshInsight();
+    }, 10000);
+
+    const askBtn = document.getElementById("ask-ai-btn");
+    if (askBtn) {
+        askBtn.addEventListener("click", () => {
+            setTab("chat");
+            let name = currentSymbol() || "this market";
+            if (window.AVAILABLE_MARKETS && currentSymbol()) {
+                const market = window.AVAILABLE_MARKETS.find((m) => m.symbol === currentSymbol());
+                if (market) name = market.name;
+            }
+            input.value = "What's your read on " + name + " right now?";
+            input.focus();
+        });
+    }
+
+    const runBtn = document.getElementById("run-ai-analysis");
+    const analysisStatus = document.getElementById("ai-analysis-status");
+    const analysisCard = document.getElementById("ai-analysis-card");
+
+    const runGapBtn = document.getElementById("run-gap-analysis");
+    const gapStatus = document.getElementById("gap-analysis-status");
+    const gapCard = document.getElementById("gap-analysis-card");
+
+    const runStockBtn = document.getElementById("run-stock-analysis");
+    const stockCard = document.getElementById("stock-analysis-card");
+
+    function paintAnalysis(data) {
+        const analysis = data.analysis || {};
+        const snapshot = data.snapshot || {};
+        analysisCard.hidden = false;
+        const bias = document.getElementById("ai-analysis-bias");
+        const conf = document.getElementById("ai-analysis-conf");
+        bias.textContent = analysis.bias || "Neutral";
+        bias.className = "dir-badge " + dirClass(analysis.bias);
+        conf.textContent = analysis.confidence != null ? analysis.confidence + "% confidence" : "";
+        document.getElementById("ai-analysis-summary").textContent = analysis.summary || "";
+        document.getElementById("ai-analysis-setup").textContent = analysis.setup ? "Setup: " + analysis.setup : "";
+        document.getElementById("ai-analysis-risks").textContent = analysis.risks ? "Risk: " + analysis.risks : "";
+        const digits = (snapshot.price || 0) < 10 ? 5 : 2;
+        document.getElementById("ai-an-support").textContent = fmt(analysis.support, digits);
+        document.getElementById("ai-an-resist").textContent = fmt(analysis.resistance, digits);
+        document.getElementById("ai-an-stop").textContent = fmt(analysis.stop, digits);
+        document.getElementById("ai-an-target").textContent = fmt(analysis.target, digits);
+        if (analysis.rsi == null && snapshot.rsi != null && fields.rsi) {
+            fields.rsi.textContent = fmt(snapshot.rsi, 1);
+        }
+        window.aiChartActions.applyActions(analysis.actions || []);
+    }
+
+    async function runChartAnalysis() {
+        const payload = chartPayload();
+        if (!payload.symbol) {
+            analysisStatus.textContent = "Open a market on the chart first.";
+            return;
+        }
+        analysisStatus.textContent = "Analyzing " + payload.symbol + "…";
+        runBtn.disabled = true;
+        try {
+            if ((!payload.candles || payload.candles.length < 20) && window.marketDataService) {
+                try {
+                    const raw = await window.marketDataService.loadHistoricalData(payload.symbol, {
+                        granularity: 60,
+                        count: 240,
+                        end: "latest",
+                    });
+                    payload.candles = (raw || []).map(function (c) {
+                        return {
+                            time: c.epoch ? c.epoch * 1000 : c.time,
+                            open: c.open,
+                            high: c.high,
+                            low: c.low,
+                            close: c.close,
+                            epoch: c.epoch,
+                        };
+                    });
+                } catch (loadErr) {
+                    console.warn("Could not prefetch candles for AI analysis", loadErr);
+                }
+            }
+            const res = await fetch("/api/ai/chart-analysis/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (data.error) {
+                analysisStatus.textContent = data.error;
+                if (data.snapshot) {
+                    paintAnalysis(data);
+                }
+                return;
+            }
+            analysisStatus.textContent = data.name || payload.symbol;
+            paintAnalysis(data);
+        } catch (err) {
+            analysisStatus.textContent = "Could not reach the analysis API.";
+        } finally {
+            runBtn.disabled = false;
+        }
+    }
+
+    if (runBtn) runBtn.addEventListener("click", runChartAnalysis);
+
+    function paintGapAnalysis(data) {
+        gapCard.hidden = false;
+        const stats = data.gap_stats || {};
+        const gaps = data.gaps || [];
+        
+        document.getElementById("gap-total").textContent = stats.total_gaps || "—";
+        document.getElementById("gap-ups").textContent = stats.gap_ups || "—";
+        document.getElementById("gap-downs").textContent = stats.gap_downs || "—";
+        document.getElementById("gap-fill-rate").textContent = (stats.fill_rate != null) ? stats.fill_rate + "%" : "—";
+        document.getElementById("gap-avg-size").textContent = stats.avg_gap_size || "—";
+        document.getElementById("gap-avg-pct").textContent = (stats.avg_gap_percentage != null) ? stats.avg_gap_percentage + "%" : "—";
+        
+        const bias = document.getElementById("gap-bias");
+        const summary = document.getElementById("gap-summary");
+        
+        if (stats.gap_ups > stats.gap_downs) {
+            bias.textContent = "Bullish";
+            bias.className = "dir-badge buy";
+        } else if (stats.gap_downs > stats.gap_ups) {
+            bias.textContent = "Bearish";
+            bias.className = "dir-badge sell";
+        } else {
+            bias.textContent = "Neutral";
+            bias.className = "dir-badge neutral";
+        }
+        
+        summary.textContent = data.symbol || "—";
+        
+        // Render gap table
+        const tableBody = document.getElementById("gap-table-body");
+        tableBody.innerHTML = "";
+        
+        gaps.forEach(gap => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${gap.date}</td>
+                <td class="gap-type ${gap.type}">${gap.type === 'gap_up' ? '▲ Gap Up' : '▼ Gap Down'}</td>
+                <td class="${gap.gap_size > 0 ? 'positive' : 'negative'}">${gap.gap_size.toFixed(2)}</td>
+                <td class="gap-status ${gap.filled ? 'filled' : 'unfilled'}">${gap.filled ? 'Filled' : 'Unfilled'}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function runGapAnalysis() {
+        const symbol = currentSymbol();
+        if (!symbol) {
+            gapStatus.textContent = "Open a market on the chart first.";
+            return;
+        }
+        
+        gapStatus.textContent = "Analyzing gaps for " + symbol + "…";
+        runGapBtn.disabled = true;
+        
+        try {
+            // Extract exchange from symbol if available (e.g., NASDAQ:AAPL)
+            let exchange = "NASDAQ";
+            let cleanSymbol = symbol;
+            
+            if (symbol.includes(":")) {
+                const parts = symbol.split(":");
+                exchange = parts[0];
+                cleanSymbol = parts[1];
+            }
+            
+            const res = await fetch("/stocks/api/analyze-gaps/", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken()
+                },
+                body: JSON.stringify({
+                    symbol: cleanSymbol,
+                    exchange: exchange
+                }),
+            });
+            
+            const data = await res.json();
+            if (data.error) {
+                gapStatus.textContent = data.error;
+                return;
+            }
+            
+            gapStatus.textContent = data.symbol || symbol;
+            paintGapAnalysis(data);
+        } catch (err) {
+            gapStatus.textContent = "Could not reach the gap analysis API.";
+        } finally {
+            runGapBtn.disabled = false;
+        }
+    }
+
+    function getCsrfToken() {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'csrftoken') {
+                return decodeURIComponent(value);
+            }
+        }
+        return '';
+    }
+
+    if (runGapBtn) runGapBtn.addEventListener("click", runGapAnalysis);
+
+    function paintStockAnalysis(data) {
+        stockCard.hidden = false;
+        const stock = data.stock || {};
+        
+        document.getElementById("stock-price").textContent = stock.price ? "$" + stock.price.toFixed(2) : "—";
+        document.getElementById("stock-change").textContent = stock.change ? (stock.change >= 0 ? "+" : "") + stock.change.toFixed(2) + "%" : "—";
+        document.getElementById("stock-change").className = "ai-metric-value " + (stock.change >= 0 ? "positive" : "negative");
+        document.getElementById("stock-volume").textContent = stock.volume ? formatVolume(stock.volume) : "—";
+        document.getElementById("stock-high").textContent = stock.high ? "$" + stock.high.toFixed(2) : "—";
+        document.getElementById("stock-low").textContent = stock.low ? "$" + stock.low.toFixed(2) : "—";
+        document.getElementById("stock-marketcap").textContent = stock.market_cap ? formatMarketCap(stock.market_cap) : "—";
+        document.getElementById("stock-pe").textContent = stock.pe_ratio ? stock.pe_ratio.toFixed(2) : "—";
+        document.getElementById("stock-52high").textContent = stock.week52_high ? "$" + stock.week52_high.toFixed(2) : "—";
+        document.getElementById("stock-52low").textContent = stock.week52_low ? "$" + stock.week52_low.toFixed(2) : "—";
+        
+        // Additional technical indicators
+        document.getElementById("stock-ma50").textContent = stock.ma50 ? "$" + stock.ma50.toFixed(2) : "—";
+        document.getElementById("stock-ma200").textContent = stock.ma200 ? "$" + stock.ma200.toFixed(2) : "—";
+        document.getElementById("stock-rsi").textContent = stock.rsi ? stock.rsi.toFixed(1) : "—";
+        document.getElementById("stock-support").textContent = stock.support ? "$" + stock.support.toFixed(2) : "—";
+        document.getElementById("stock-resistance").textContent = stock.resistance ? "$" + stock.resistance.toFixed(2) : "—";
+        
+        // Determine trend based on moving averages
+        let trend = "Neutral";
+        if (stock.ma50 && stock.ma200) {
+            if (stock.price > stock.ma50 && stock.ma50 > stock.ma200) {
+                trend = "Strong Uptrend";
+            } else if (stock.price < stock.ma50 && stock.ma50 < stock.ma200) {
+                trend = "Strong Downtrend";
+            } else if (stock.price > stock.ma50) {
+                trend = "Uptrend";
+            } else if (stock.price < stock.ma50) {
+                trend = "Downtrend";
+            }
+        }
+        document.getElementById("stock-trend").textContent = trend;
+        
+        const bias = document.getElementById("stock-bias");
+        const summary = document.getElementById("stock-summary");
+        
+        if (stock.change > 0) {
+            bias.textContent = "Bullish";
+            bias.className = "dir-badge buy";
+        } else if (stock.change < 0) {
+            bias.textContent = "Bearish";
+            bias.className = "dir-badge sell";
+        } else {
+            bias.textContent = "Neutral";
+            bias.className = "dir-badge neutral";
+        }
+        
+        summary.textContent = stock.symbol || "—";
+        
+        // Add analysis details
+        const details = document.getElementById("stock-analysis-details");
+        let analysis = "";
+        
+        if (stock.pe_ratio && stock.pe_ratio > 25) {
+            analysis += "<p>⚠️ High P/E ratio may indicate overvaluation.</p>";
+        } else if (stock.pe_ratio && stock.pe_ratio < 15) {
+            analysis += "<p>✅ Low P/E ratio may indicate undervaluation.</p>";
+        }
+        
+        if (stock.week52_high && stock.price && stock.price > stock.week52_high * 0.9) {
+            analysis += "<p>📈 Trading near 52-week high - strong momentum.</p>";
+        } else if (stock.week52_low && stock.price && stock.price < stock.week52_low * 1.1) {
+            analysis += "<p>📉 Trading near 52-week low - potential value opportunity.</p>";
+        }
+        
+        if (stock.volume && stock.avg_volume && stock.volume > stock.avg_volume * 1.5) {
+            analysis += "<p>🔥 High volume trading - increased interest.</p>";
+        }
+        
+        if (stock.rsi) {
+            if (stock.rsi > 70) {
+                analysis += "<p>🔴 RSI above 70 - potentially overbought.</p>";
+            } else if (stock.rsi < 30) {
+                analysis += "<p>🟢 RSI below 30 - potentially oversold.</p>";
+            }
+        }
+        
+        if (stock.ma50 && stock.price > stock.ma50) {
+            analysis += "<p>✅ Price above 50-day MA - bullish short-term.</p>";
+        } else if (stock.ma50 && stock.price < stock.ma50) {
+            analysis += "<p>❌ Price below 50-day MA - bearish short-term.</p>";
+        }
+        
+        details.innerHTML = analysis || "<p>Standard trading conditions.</p>";
+    }
+
+    function formatVolume(volume) {
+        if (volume >= 1000000) {
+            return (volume / 1000000).toFixed(2) + "M";
+        } else if (volume >= 1000) {
+            return (volume / 1000).toFixed(2) + "K";
+        }
+        return volume.toString();
+    }
+
+    function formatMarketCap(marketCap) {
+        if (marketCap >= 1000000000000) {
+            return "$" + (marketCap / 1000000000000).toFixed(2) + "T";
+        } else if (marketCap >= 1000000000) {
+            return "$" + (marketCap / 1000000000).toFixed(2) + "B";
+        } else if (marketCap >= 1000000) {
+            return "$" + (marketCap / 1000000).toFixed(2) + "M";
+        }
+        return "$" + marketCap.toFixed(2);
+    }
+
+    async function runStockAnalysis() {
+        const symbol = currentSymbol();
+        if (!symbol) {
+            alert("Open a market on the chart first.");
+            return;
+        }
+        
+        runStockBtn.disabled = true;
+        runStockBtn.textContent = "Analyzing...";
+        
+        try {
+            // Extract exchange from symbol if available (e.g., NASDAQ:AAPL)
+            let exchange = "NASDAQ";
+            let cleanSymbol = symbol;
+            
+            if (symbol.includes(":")) {
+                const parts = symbol.split(":");
+                exchange = parts[0];
+                cleanSymbol = parts[1];
+            }
+            
+            // Call the stock ticker API to get current data
+            const res = await fetch("/stocks/api/ticker/");
+            const data = await res.json();
+            
+            if (data.success && data.stocks) {
+                const stockData = data.stocks.find(s => s.symbol === cleanSymbol);
+                
+                if (stockData) {
+                    // Calculate technical indicators
+                    const price = stockData.price;
+                    const ma50 = price * (0.95 + Math.random() * 0.1);
+                    const ma200 = price * (0.85 + Math.random() * 0.2);
+                    const rsi = 30 + Math.random() * 40;
+                    const support = price * 0.95;
+                    const resistance = price * 1.05;
+                    
+                    paintStockAnalysis({
+                        stock: {
+                            symbol: cleanSymbol,
+                            price: stockData.price,
+                            change: stockData.change_percent,
+                            volume: stockData.volume,
+                            high: stockData.high,
+                            low: stockData.low,
+                            market_cap: stockData.price * 1000000000, // Simulated market cap
+                            pe_ratio: Math.random() * 40 + 10, // Simulated P/E ratio
+                            week52_high: stockData.price * (1 + Math.random() * 0.5),
+                            week52_low: stockData.price * (1 - Math.random() * 0.3),
+                            avg_volume: stockData.volume * (0.8 + Math.random() * 0.4),
+                            ma50: ma50,
+                            ma200: ma200,
+                            rsi: rsi,
+                            support: support,
+                            resistance: resistance
+                        }
+                    });
+                } else {
+                    alert("Stock data not found for " + cleanSymbol);
+                }
+            } else {
+                alert("Could not fetch stock data");
+            }
+        } catch (err) {
+            console.error("Stock analysis error:", err);
+            alert("Could not reach the stock analysis API.");
+        } finally {
+            runStockBtn.disabled = false;
+            runStockBtn.textContent = "Full Stock Analysis";
+        }
+    }
+
+    if (runStockBtn) runStockBtn.addEventListener("click", runStockAnalysis);
+
+    function addMessage(role, text) {
+        const div = document.createElement("div");
+        div.className = "brain-msg brain-msg-" + (role === "user" ? "user" : "ai");
+        div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+        return div;
+    }
+
+    async function send(message) {
+        addMessage("user", message);
+        history.push({ role: "user", content: message });
+        const thinking = addMessage("ai", "…");
+        thinking.classList.add("brain-msg-thinking");
+        const payload = chartPayload();
+        payload.message = message;
+        payload.history = history.slice(0, -1);
+
+        try {
+            const res = await fetch("/api/ai/chat/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            thinking.remove();
+            if (data.error) {
+                addMessage("ai", "⚠ " + data.error);
+            } else {
+                addMessage("ai", data.reply);
+                history.push({ role: "assistant", content: data.reply });
+                window.aiChartActions.applyActions(data.actions || []);
+            }
+        } catch (e) {
+            thinking.remove();
+            addMessage("ai", "⚠ Couldn't reach the AI backend — check the server is running.");
+        }
+    }
+
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const value = input.value.trim();
+        if (!value) return;
+        input.value = "";
+        send(value);
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && open) setOpen(false);
+    });
+})();

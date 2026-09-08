@@ -1,0 +1,381 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}Stock Analysis - MoneyBots{% endblock %}
+
+{% block content %}
+<div class="stocks-page">
+    <!-- Stock Ticker -->
+    <div class="stock-ticker">
+        <div class="ticker-container">
+            <div class="ticker-content" id="ticker-content">
+                <div class="ticker-loading">Loading stock prices...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stocks-content">
+    <div class="tradingview-widget-container">
+        <div id="tradingview_widget"></div>
+    </div>
+
+    <div class="gap-analysis-section" id="gap-analysis-section" style="display: none;">
+        <h3>Gap Analysis Results</h3>
+        <div class="gap-stats" id="gap-stats"></div>
+        <div class="gap-table-container">
+            <table class="gap-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Previous Close</th>
+                        <th>Open</th>
+                        <th>Gap Size</th>
+                        <th>Gap %</th>
+                        <th>Status</th>
+                        <th>Fill Date</th>
+                    </tr>
+                </thead>
+                <tbody id="gap-table-body">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script>
+(function() {
+    const defaultSymbol = '{{ default_symbol }}';
+    const defaultExchange = '{{ default_exchange }}';
+    
+    function loadTradingViewWidget(symbol, exchange) {
+        const widget = new TradingView.widget({
+            "width": "100%",
+            "height": "100%",
+            "symbol": exchange + ":" + symbol,
+            "interval": "M",
+            "timezone": "Etc/UTC",
+            "theme": "light",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "container_id": "tradingview_widget",
+            "hide_side_toolbar": false,
+            "hide_top_toolbar": true
+        });
+    }
+    
+    // Load default chart
+    loadTradingViewWidget(defaultSymbol, defaultExchange);
+    
+    // Set current symbol for brain widget
+    window.currentChartSymbol = defaultSymbol;
+    
+    function analyzeStockGaps(symbol, exchange) {
+        const button = document.getElementById('analyze-gaps');
+        button.disabled = true;
+        button.textContent = 'Analyzing...';
+        
+        fetch('/stocks/api/analyze-gaps/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify({
+                symbol: symbol,
+                exchange: exchange
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayGapAnalysis(data);
+            } else {
+                alert('Error analyzing gaps: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error analyzing gaps: ' + error.message);
+        })
+        .finally(() => {
+            button.disabled = false;
+            button.textContent = 'Analyze Gaps';
+        });
+    }
+    
+    function displayGapAnalysis(data) {
+        const section = document.getElementById('gap-analysis-section');
+        const statsDiv = document.getElementById('gap-stats');
+        const tableBody = document.getElementById('gap-table-body');
+        
+        // Display statistics
+        const stats = data.gap_stats;
+        statsDiv.innerHTML = `
+            <div class="stat-item">
+                <span class="stat-label">Total Gaps:</span>
+                <span class="stat-value">${stats.total_gaps}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Gap Ups:</span>
+                <span class="stat-value">${stats.gap_ups}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Gap Downs:</span>
+                <span class="stat-value">${stats.gap_downs}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Fill Rate:</span>
+                <span class="stat-value">${stats.fill_rate}%</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg Gap Size:</span>
+                <span class="stat-value">${stats.avg_gap_size}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Avg Gap %:</span>
+                <span class="stat-value">${stats.avg_gap_percentage}%</span>
+            </div>
+        `;
+        
+        // Display gap table
+        tableBody.innerHTML = '';
+        data.gaps.forEach(gap => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${gap.date}</td>
+                <td class="gap-type ${gap.type}">${gap.type === 'gap_up' ? '▲ Gap Up' : '▼ Gap Down'}</td>
+                <td>${gap.previous_close.toFixed(2)}</td>
+                <td>${gap.open.toFixed(2)}</td>
+                <td class="${gap.gap_size > 0 ? 'positive' : 'negative'}">${gap.gap_size.toFixed(2)}</td>
+                <td class="${gap.gap_percentage > 0 ? 'positive' : 'negative'}">${gap.gap_percentage.toFixed(2)}%</td>
+                <td class="gap-status ${gap.filled ? 'filled' : 'unfilled'}">${gap.filled ? 'Filled' : 'Unfilled'}</td>
+                <td>${gap.fill_date || '-'}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+        
+        section.style.display = 'block';
+    }
+    
+    function getCsrfToken() {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'csrftoken') {
+                return decodeURIComponent(value);
+            }
+        }
+        return '';
+    }
+    
+    // Stock Ticker Functionality
+    function loadStockTicker() {
+        fetch('/stocks/api/ticker/')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayTicker(data.stocks);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading ticker:', error);
+            });
+    }
+    
+    function displayTicker(stocks) {
+        const tickerContent = document.getElementById('ticker-content');
+        let tickerHTML = '<div class="ticker-scroll">';
+        
+        stocks.forEach(stock => {
+            const changeClass = stock.change >= 0 ? 'positive' : 'negative';
+            const arrow = stock.change >= 0 ? '▲' : '▼';
+            
+            tickerHTML += `
+                <div class="ticker-item">
+                    <span class="ticker-symbol">${stock.symbol}</span>
+                    <span class="ticker-price">$${stock.price.toFixed(2)}</span>
+                    <span class="ticker-change ${changeClass}">
+                        ${arrow} ${Math.abs(stock.change).toFixed(2)} (${stock.change_percent.toFixed(2)}%)
+                    </span>
+                </div>
+            `;
+        });
+        
+        tickerHTML += '</div>';
+        tickerContent.innerHTML = tickerHTML;
+    }
+    
+    // Load ticker on page load
+    loadStockTicker();
+    
+    // Refresh ticker every 30 seconds
+    setInterval(loadStockTicker, 30000);
+})();
+</script>
+
+<style>
+.stocks-page {
+    padding: 0;
+    max-width: 100%;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.stocks-content {
+    padding: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Stock Ticker Styles */
+.stock-ticker {
+    background: #ffffff;
+    border-bottom: 2px solid #ff6a00;
+    padding: 4px 0;
+    overflow: hidden;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.ticker-container {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.ticker-content {
+    display: flex;
+    align-items: center;
+}
+
+.ticker-loading {
+    text-align: center;
+    color: #333;
+    font-size: 0.9em;
+    width: 100%;
+}
+
+.ticker-scroll {
+    display: flex;
+    animation: scroll 30s linear infinite;
+    white-space: nowrap;
+}
+
+.ticker-scroll:hover {
+    animation-play-state: paused;
+}
+
+@keyframes scroll {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.ticker-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    margin-right: 20px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e0e0e0;
+}
+
+.ticker-symbol {
+    font-weight: 700;
+    color: #ff6a00;
+    font-size: 0.8em;
+    min-width: 40px;
+}
+
+.ticker-price {
+    color: #333;
+    font-weight: 600;
+    font-size: 0.8em;
+    min-width: 60px;
+}
+
+.ticker-change {
+    font-size: 0.75em;
+    font-weight: 600;
+    min-width: 70px;
+}
+
+.ticker-change.positive {
+    color: #00ff88;
+}
+
+.ticker-change.negative {
+    color: #ff4757;
+}
+
+.tradingview-widget-container {
+    flex: 1;
+    border-radius: 0;
+    overflow: hidden;
+    box-shadow: none;
+    margin: 0;
+    height: calc(100vh - 18px);
+}
+
+.gap-analysis-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.gap-analysis-section h3 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.gap-stats {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 15px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    min-width: 120px;
+}
+
+.stat-label {
+    font-size: 0.85em;
+    color: #666;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 1.2em;
+    color: #333;
+    font-weight: 700;
+}
+
+@media (max-width: 768px) {
+    .gap-stats {
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}

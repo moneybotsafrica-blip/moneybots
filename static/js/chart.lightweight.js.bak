@@ -1,0 +1,140 @@
+/*
+ * Live Deriv chart — connects straight from the browser to Deriv's public
+ * WebSocket API (no Django proxy needed for chart data; the backend's own
+ * Deriv connection in run_analysis is only for the ML/analysis loop).
+ *
+ * Exposed as window.initDerivChart(opts) so both the main dashboard and the
+ * AI Chart page can each mount their own independent chart instance.
+ */
+(function () {
+    const SYMBOL_MAP = {
+        R_10: "R_10", R_25: "R_25", R_50: "R_50", R_75: "R_75", R_100: "R_100",
+        "1HZ10V": "1HZ10V", "1HZ25V": "1HZ25V", "1HZ50V": "1HZ50V", "1HZ75V": "1HZ75V", "1HZ100V": "1HZ100V",
+        BOOM_1000: "BOOM1000", BOOM_500: "BOOM500", CRASH_1000: "CRASH1000", CRASH_500: "CRASH500",
+        Jump_75: "JD75", Jump_100: "JD100", Jump_50: "JD50", STPRD: "STPRNG",
+    };
+
+    function formatSymbol(sym) {
+        if (sym.startsWith("frx")) return sym;
+        return SYMBOL_MAP[sym] || sym;
+    }
+
+    // TradingView-style light chart surface with TradingView's own default
+    // candle colors (up #26a69a / down #ef5350), matched to the site's
+    // --accent / --sell tokens in style.css.
+    const THEME = {
+        background: "#ffffff",
+        text: "#5c6470",
+        grid: "#eef1f4",
+        border: "#dfe3e8",
+        up: "#26a69a",
+        down: "#ef5350",
+    };
+
+    window.initDerivChart = function ({ containerId, selectId, priceId, defaultSymbol }) {
+        const container = document.getElementById(containerId);
+        const select = document.getElementById(selectId);
+        const priceEl = document.getElementById(priceId);
+        if (!container || !select) return null;
+
+        const chart = LightweightCharts.createChart(container, {
+            layout: { background: { color: THEME.background }, textColor: THEME.text, fontFamily: "Inter, sans-serif" },
+            grid: { vertLines: { color: THEME.grid }, horzLines: { color: THEME.grid } },
+            rightPriceScale: { borderColor: THEME.border },
+            timeScale: { borderColor: THEME.border, timeVisible: true, secondsVisible: false },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: { color: "#c7cdd6", labelBackgroundColor: "#1a1f29" },
+                horzLine: { color: "#c7cdd6", labelBackgroundColor: "#1a1f29" },
+            },
+            autoSize: true,
+        });
+
+        const candleSeries = chart.addCandlestickSeries({
+            upColor: THEME.up, downColor: THEME.down,
+            borderUpColor: THEME.up, borderDownColor: THEME.down,
+            wickUpColor: THEME.up, wickDownColor: THEME.down,
+        });
+
+        if (defaultSymbol) select.value = defaultSymbol;
+
+        let ws = null;
+        let lastPrice = null;
+        let currentReqId = 1;
+        let destroyed = false;
+
+        function connect() {
+            ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${window.DERIV_APP_ID}`);
+            ws.onopen = () => subscribe(select.value);
+            ws.onmessage = (evt) => handleMessage(JSON.parse(evt.data));
+            ws.onclose = () => { if (!destroyed) setTimeout(connect, 3000); };
+            ws.onerror = () => ws.close();
+        }
+
+        function subscribe(symbol) {
+            const req = {
+                ticks_history: formatSymbol(symbol),
+                adjust_start_time: 1,
+                count: 500,
+                end: "latest",
+                start: 1,
+                style: "candles",
+                granularity: 60,
+                subscribe: 1,
+                req_id: currentReqId++,
+            };
+            ws.send(JSON.stringify(req));
+        }
+
+        function resubscribe() {
+            if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+        }
+
+        function handleMessage(data) {
+            if (data.error) {
+                console.warn("Deriv API error:", data.error.message);
+                return;
+            }
+            if (data.candles) {
+                const bars = data.candles.map((c) => ({
+                    time: c.epoch, open: c.open, high: c.high, low: c.low, close: c.close,
+                }));
+                candleSeries.setData(bars);
+                chart.timeScale().fitContent();
+                if (bars.length) updatePrice(bars[bars.length - 1].close, bars[bars.length - 2]?.close);
+            } else if (data.msg_type === "ohlc" && data.ohlc) {
+                const o = data.ohlc;
+                const bar = { time: o.epoch, open: +o.open, high: +o.high, low: +o.low, close: +o.close };
+                candleSeries.update(bar);
+                updatePrice(bar.close, lastPrice);
+            }
+        }
+
+        function updatePrice(price, prev) {
+            if (priceEl) {
+                priceEl.textContent = price.toFixed(price < 10 ? 5 : 2);
+                priceEl.classList.remove("up", "down");
+                if (prev !== undefined && prev !== null) {
+                    priceEl.classList.add(price >= prev ? "up" : "down");
+                }
+            }
+            lastPrice = price;
+            window.currentChartSymbol = select.value;
+            window.currentChartPrice = price;
+            container.dispatchEvent(new CustomEvent("derivprice", { detail: { symbol: select.value, price } }));
+        }
+
+        select.addEventListener("change", () => {
+            lastPrice = null;
+            window.currentChartSymbol = select.value;
+            resubscribe();
+        });
+
+        connect();
+
+        return {
+            chart, candleSeries,
+            destroy() { destroyed = true; if (ws) ws.close(); },
+        };
+    };
+})();
