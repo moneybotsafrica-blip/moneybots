@@ -18,3 +18,5 @@ requests>=2.31             # AI chat panel (Claude API) + Forex Factory calendar
 aiohttp>=3.9               # Async HTTP for news sentiment
 feedparser>=6.0            # RSS feed parsing for news
 django-allauth>=0.60.0     # Google OAuth authentication
+pytz>=2023.3                # Timezone support for market hours
+numpy>=1.24.0               # Numerical operations for ML strategies
