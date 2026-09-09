@@ -10,7 +10,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env", override=True)
+# Try to load .env file if it exists, but don't fail if it doesn't (Vercel environment)
+env_path = BASE_DIR / ".env"
+if env_path.exists():
+    load_dotenv(env_path, override=True)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
 DEBUG = os.getenv("DEBUG", "True") == "True"
@@ -82,12 +85,20 @@ CHANNEL_LAYERS = {
     }
 }
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Use SQLite for development, but can be overridden with DATABASE_URL for production
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    import dj_database_url
+    DATABASES = {
+        "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -156,10 +167,10 @@ GROQ_API_KEY = _env_secret("GROQ_API_KEY")
 GROQ_MODEL = _env_secret("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # ---------------------------------------------------------------------------
-# MT5 Live Trading Configuration
+# MT5 Live Trading Configuration (Windows-only, disabled on Vercel)
 # ---------------------------------------------------------------------------
-MT5_PATH = os.getenv("MT5_PATH", r"C:\Program Files\MetaTrader 5 Terminal\terminal64.exe")
-MT5_LOGIN = int(os.getenv("MT5_LOGIN", "25305222"))
+MT5_PATH = os.getenv("MT5_PATH", "")
+MT5_LOGIN = int(os.getenv("MT5_LOGIN", "25305222")) if os.getenv("MT5_LOGIN") else 0
 MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
 MT5_SERVER = os.getenv("MT5_SERVER", "Deriv-Demo")
 

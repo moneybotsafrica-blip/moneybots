@@ -27,13 +27,15 @@
   "env": {
     "DEBUG": "False",
     "SECRET_KEY": "lkIX6gSb9_KB0yvAGF3dwhJEOwHJb-GOSrAZ8tPhqkac7NkAkuVvvPAx-EZn2Ks9IGQ",
-    "ALLOWED_HOSTS": "moneybots.vercel.app,.vercel.app",
+    "ALLOWED_HOSTS": "moneybots.vercel.app,.vercel.app,localhost",
     "DERIV_APP_ID": "1089",
     "DERIV_API_TOKEN": "",
     "ANTHROPIC_API_KEY": "",
     "GROQ_API_KEY": "",
     "GOOGLE_OAUTH_CLIENT_ID": "",
     "GOOGLE_OAUTH_CLIENT_SECRET": "",
-    "SITE_DOMAIN": "moneybots.vercel.app"
+    "SITE_DOMAIN": "moneybots.vercel.app",
+    "PYTHONUNBUFFERED": "1",
+    "VERCEL": "1"
   }
 }
