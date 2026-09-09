@@ -123,35 +123,35 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ---------------------------------------------------------------------------
 # Deriv API
 # ---------------------------------------------------------------------------
-DERIV_APP_ID = os.getenv("DERIV_APP_ID", "1089")
-DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN", "")  # Leave empty for public access
-DERIV_WS_URL = os.getenv("DERIV_WS_URL", f"wss://ws.derivws.com/websockets/v3?app_id={DERIV_APP_ID}")
+DERIV_APP_ID = os.getenv("DERIV_APP_ID") or "1089"
+DERIV_API_TOKEN = os.getenv("DERIV_API_TOKEN") or ""  # Leave empty for public access
+DERIV_WS_URL = os.getenv("DERIV_WS_URL") or f"wss://ws.derivws.com/websockets/v3?app_id={DERIV_APP_ID}"
 
 # ---------------------------------------------------------------------------
 # Paper trading (no live execution anywhere in this project)
 # ---------------------------------------------------------------------------
 # Disabled for Vercel deployment to simplify configuration
-PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE", "10")) if not os.environ.get("VERCEL") else 0
+PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE") or "10") if not os.environ.get("VERCEL") else 0
 
 # ---------------------------------------------------------------------------
 # Analysis engine
 # ---------------------------------------------------------------------------
-ANALYSIS_INTERVAL_SECONDS = int(os.getenv("ANALYSIS_INTERVAL_SECONDS", "30"))
-MODEL_RETRAIN_HOURS = int(os.getenv("MODEL_RETRAIN_HOURS", "6"))
+ANALYSIS_INTERVAL_SECONDS = int(os.getenv("ANALYSIS_INTERVAL_SECONDS") or "30")
+MODEL_RETRAIN_HOURS = int(os.getenv("MODEL_RETRAIN_HOURS") or "6")
 ML_MODELS_DIR = BASE_DIR / "ml_models"
 
 # ---------------------------------------------------------------------------
 # Email alerts — pulled from env, never hardcoded (see alerts/email_alerts.py)
 # ---------------------------------------------------------------------------
 EMAIL_CONFIG = {
-    "HOST": os.getenv("EMAIL_HOST", "smtp.gmail.com"),
-    "PORT": int(os.getenv("EMAIL_PORT", "587")),
-    "USE_TLS": os.getenv("EMAIL_USE_TLS", "True") == "True",
-    "HOST_USER": os.getenv("EMAIL_HOST_USER", ""),
-    "HOST_PASSWORD": os.getenv("EMAIL_HOST_PASSWORD", ""),
-    "CONTACT_EMAIL": os.getenv("ALERT_CONTACT_EMAIL", ""),
+    "HOST": os.getenv("EMAIL_HOST") or "smtp.gmail.com",
+    "PORT": int(os.getenv("EMAIL_PORT") or "587"),
+    "USE_TLS": (os.getenv("EMAIL_USE_TLS") or "True") == "True",
+    "HOST_USER": os.getenv("EMAIL_HOST_USER") or "",
+    "HOST_PASSWORD": os.getenv("EMAIL_HOST_PASSWORD") or "",
+    "CONTACT_EMAIL": os.getenv("ALERT_CONTACT_EMAIL") or "",
 }
-ALERT_COOLDOWN_MINUTES = int(os.getenv("ALERT_COOLDOWN_MINUTES", "240"))
+ALERT_COOLDOWN_MINUTES = int(os.getenv("ALERT_COOLDOWN_MINUTES") or "240")
 
 # ---------------------------------------------------------------------------
 # AI chart assistant — floating "brain" chat panel + AI Chart page.
@@ -172,17 +172,17 @@ GROQ_MODEL = _env_secret("GROQ_MODEL", "llama-3.3-70b-versatile")
 # ---------------------------------------------------------------------------
 # MT5 Live Trading Configuration (Windows-only, disabled on Vercel)
 # ---------------------------------------------------------------------------
-MT5_PATH = os.getenv("MT5_PATH", "")
-MT5_LOGIN = int(os.getenv("MT5_LOGIN", "25305222")) if os.getenv("MT5_LOGIN") else 0
-MT5_PASSWORD = os.getenv("MT5_PASSWORD", "")
-MT5_SERVER = os.getenv("MT5_SERVER", "Deriv-Demo")
+MT5_PATH = os.getenv("MT5_PATH") or ""
+MT5_LOGIN = int(os.getenv("MT5_LOGIN") or "25305222") if os.getenv("MT5_LOGIN") else 0
+MT5_PASSWORD = os.getenv("MT5_PASSWORD") or ""
+MT5_SERVER = os.getenv("MT5_SERVER") or "Deriv-Demo"
 
 # ---------------------------------------------------------------------------
 # News Sentiment Analysis Configuration
 # ---------------------------------------------------------------------------
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY") or ""
 NEWS_CACHE_FILE = BASE_DIR / "news_cache.pkl"
-NEWS_CACHE_DURATION = int(os.getenv("NEWS_CACHE_DURATION", "3600"))  # 1 hour
+NEWS_CACHE_DURATION = int(os.getenv("NEWS_CACHE_DURATION") or "3600")  # 1 hour
 
 # ---------------------------------------------------------------------------
 # Google OAuth Configuration (django-allauth)
