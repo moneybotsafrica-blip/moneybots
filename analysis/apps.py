@@ -11,9 +11,15 @@ class AnalysisConfig(AppConfig):
 
     def ready(self):
         """Start the analysis loop when Django app is ready."""
-        # Disable background analysis loop for Vercel/serverless environments
+        # Completely disable for Vercel/serverless environments and build commands
         if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
             print("[Analysis] Running in serverless environment, skipping background analysis loop")
+            return
+
+        # Skip during management commands (including collectstatic)
+        skip_commands = ['migrate', 'makemigrations', 'collectstatic', 'createsuperuser', 'shell', 'test']
+        if any(cmd in sys.argv for cmd in skip_commands):
+            print(f"[Analysis] Skipping startup for command: {' '.join(sys.argv)}")
             return
 
         print("[Analysis] ready() method called")
@@ -21,12 +27,6 @@ class AnalysisConfig(AppConfig):
         # Prevent multiple startups (this method can be called multiple times)
         if os.environ.get("ANALYSIS_LOOP_RUNNING"):
             print("[Analysis] Loop already running, skipping startup")
-            return
-
-        # Only run in the main process, not during migrations/management commands
-        skip_commands = ['migrate', 'makemigrations', 'collectstatic', 'createsuperuser', 'shell', 'test']
-        if any(cmd in sys.argv for cmd in skip_commands):
-            print(f"[Analysis] Skipping startup for command: {' '.join(sys.argv)}")
             return
 
         # Set environment variable to prevent duplicate startups

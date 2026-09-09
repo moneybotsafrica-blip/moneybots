@@ -130,7 +130,8 @@ DERIV_WS_URL = os.getenv("DERIV_WS_URL", f"wss://ws.derivws.com/websockets/v3?ap
 # ---------------------------------------------------------------------------
 # Paper trading (no live execution anywhere in this project)
 # ---------------------------------------------------------------------------
-PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE", "10"))
+# Disabled for Vercel deployment to simplify configuration
+PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE", "10")) if not os.environ.get("VERCEL") else 0
 
 # ---------------------------------------------------------------------------
 # Analysis engine
