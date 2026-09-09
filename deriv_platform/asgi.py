@@ -13,7 +13,8 @@ django_asgi_app = get_asgi_application()
 # asgi.py is the entrypoint Vercel actually loads (WSGI_APPLICATION is
 # ignored once ASGI_APPLICATION is also set), so this can't live in
 # wsgi.py alone anymore.
-if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+# Check for DATABASE_URL to ensure migrations only run when DB is configured
+if os.getenv("DATABASE_URL") and (os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")):
     try:
         from django.core.management import call_command
         from django.db import connection
