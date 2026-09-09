@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "manage.py",
+      "src": "deriv_platform/wsgi.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "15mb",
@@ -21,7 +21,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "manage.py"
+      "dest": "deriv_platform/wsgi.py"
     }
   ],
   "env": {
