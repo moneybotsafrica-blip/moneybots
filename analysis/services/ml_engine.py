@@ -14,24 +14,31 @@ import logging
 import time
 from pathlib import Path
 
-import joblib
 import pandas as pd
 from django.conf import settings
-from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import (
-    AdaBoostClassifier,
-    GradientBoostingClassifier,
-    RandomForestClassifier,
-    VotingClassifier,
-)
-from sklearn.feature_selection import SelectKBest, f_classif
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.neural_network import MLPClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
+
+# ML libraries are optional for Vercel deployment - degrade gracefully
+try:
+    import joblib
+    from sklearn.compose import ColumnTransformer
+    from sklearn.ensemble import (
+        AdaBoostClassifier,
+        GradientBoostingClassifier,
+        RandomForestClassifier,
+        VotingClassifier,
+    )
+    from sklearn.feature_selection import SelectKBest, f_classif
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import train_test_split
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import SVC
+    _HAS_SKLEARN = True
+except ImportError:
+    _HAS_SKLEARN = False
+    logging.warning("sklearn not installed. ML functionality will be disabled.")
 
 from .indicators import NUMERIC_FEATURES, add_technical_indicators
 
@@ -59,6 +66,9 @@ CONFIDENCE_THRESHOLD = 0.6  # Lower threshold from 0.75 to catch more signals
 def build_sklearn_pipeline() -> Pipeline:
     """Full sklearn ensemble: RF + GB + AdaBoost (+ XGB/LGBM if available)
     + LogisticRegression + SVC + MLP, soft-voting."""
+    if not _HAS_SKLEARN:
+        raise ImportError("sklearn not installed. ML functionality disabled.")
+
     numeric_transformer = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="median")),
         ("scaler", StandardScaler()),
@@ -112,12 +122,16 @@ class SymbolModel:
         }
 
     def save(self):
+        if not _HAS_SKLEARN:
+            return
         p = self._paths()
         if self.sklearn_pipeline is not None:
             joblib.dump(self.sklearn_pipeline, p["sk"])
         joblib.dump({"trained_at": self.trained_at}, p["meta"])
 
     def load_if_fresh(self, max_age_hours: int) -> bool:
+        if not _HAS_SKLEARN:
+            return False
         p = self._paths()
         if not p["meta"].exists() or not p["sk"].exists():
             return False
@@ -131,6 +145,10 @@ class SymbolModel:
 
     # -- training --------------------------------------------------------
     def train(self, df: pd.DataFrame) -> bool:
+        if not _HAS_SKLEARN:
+            logger.info("sklearn not installed. Skipping ML training for %s", self.symbol)
+            return False
+
         df = add_technical_indicators(df)
         if len(df) < MIN_TRAINING_ROWS:
             logger.info("Not enough candles to train %s (%d rows)", self.symbol, len(df))
@@ -144,16 +162,16 @@ class SymbolModel:
 
         # Check if we have enough samples for stratified split
         min_class_count = int(y.value_counts().min())
-        
+
         # Use stratify only if each class has at least 2 samples
         use_stratify = min_class_count >= 2
-        
+
         if use_stratify:
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42, stratify=y
             )
         else:
-            logger.warning("Insufficient samples for stratified split on %s (min class: %d), using random split", 
+            logger.warning("Insufficient samples for stratified split on %s (min class: %d), using random split",
                           self.symbol, min_class_count)
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=0.2, random_state=42
@@ -171,6 +189,9 @@ class SymbolModel:
     # -- inference --------------------------------------------------------
     def predict_proba_up(self, df_with_indicators: pd.DataFrame) -> float:
         """Probability of an upward significant move, 0..1."""
+        if not _HAS_SKLEARN:
+            return 0.5  # Neutral probability when ML is disabled
+
         latest = df_with_indicators[NUMERIC_FEATURES].iloc[[-1]].fillna(0)
 
         sk_proba = 0.5
