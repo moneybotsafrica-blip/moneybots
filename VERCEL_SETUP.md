@@ -47,18 +47,7 @@ Set these in your Vercel project settings (Settings → Environment Variables):
 
 ## Post-Deployment Steps
 
-After deployment, run database migrations:
-
-```bash
-# Install Vercel CLI if needed
-npm i -g vercel
-
-# Login to Vercel
-vercel login
-
-# Run migrations
-vercel exec python manage.py migrate
-```
+Database migrations now run automatically during the build process. No manual migration steps needed after deployment.
 
 ## Notes
 
