@@ -85,14 +85,15 @@ CHANNEL_LAYERS = {
     }
 }
 
-# Use SQLite for development, but can be overridden with DATABASE_URL for production
+# Use SQLite for development, PostgreSQL for production
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     import dj_database_url
     DATABASES = {
-        "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600)
+        "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
 else:
+    # For local development only - use SQLite in project directory
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",

@@ -1,41 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "deriv_platform/wsgi.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb",
-        "runtime": "python3.9"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/media/(.*)",
-      "dest": "/media/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "deriv_platform/wsgi.py"
-    }
-  ],
-  "env": {
-    "DEBUG": "False",
-    "SECRET_KEY": "lkIX6gSb9_KB0yvAGF3dwhJEOwHJb-GOSrAZ8tPhqkac7NkAkuVvvPAx-EZn2Ks9IGQ",
-    "ALLOWED_HOSTS": "moneybots.vercel.app,.vercel.app,localhost",
-    "DERIV_APP_ID": "1089",
-    "DERIV_API_TOKEN": "",
-    "ANTHROPIC_API_KEY": "",
-    "GROQ_API_KEY": "",
-    "GOOGLE_OAUTH_CLIENT_ID": "",
-    "GOOGLE_OAUTH_CLIENT_SECRET": "",
-    "SITE_DOMAIN": "moneybots.vercel.app",
-    "PYTHONUNBUFFERED": "1",
-    "VERCEL": "1"
-  }
+  "buildCommand": "python manage.py collectstatic --noinput",
+  "outputDirectory": "staticfiles",
+  "installCommand": "pip install -r requirements.txt"
 }
