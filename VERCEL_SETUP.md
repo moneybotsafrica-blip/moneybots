@@ -47,7 +47,20 @@ Set these in your Vercel project settings (Settings → Environment Variables):
 
 ## Post-Deployment Steps
 
-Database migrations now run automatically during the build process. No manual migration steps needed after deployment.
+**Database migrations run automatically** on first deployment - no terminal access needed! The WSGI entry point automatically runs migrations when the app starts up.
+
+If you need to manually run migrations later, you can use:
+
+```bash
+# Install Vercel CLI if needed
+npm i -g vercel
+
+# Login to Vercel
+vercel login
+
+# Run migrations
+vercel exec python manage.py migrate
+```
 
 ## Notes
 
