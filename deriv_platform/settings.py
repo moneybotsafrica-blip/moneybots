@@ -92,6 +92,13 @@ if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
+elif os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
+    # Serverless environments require DATABASE_URL - fail fast with clear error
+    raise RuntimeError(
+        "DATABASE_URL environment variable is required for serverless deployment. "
+        "Please set DATABASE_URL in your Vercel project settings. "
+        "See VERCEL_SETUP.md for database setup instructions."
+    )
 else:
     # For local development only - use SQLite in project directory
     DATABASES = {
