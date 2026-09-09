@@ -1,6 +1,5 @@
 Django>=5.0,<5.3
 dj-database-url>=2.0
-gunicorn>=21.0
 channels>=4.1
 channels-redis>=4.2          # optional: swap InMemoryChannelLayer for Redis in production
 daphne>=4.1
