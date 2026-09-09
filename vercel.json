@@ -1,5 +1,6 @@
 {
   "version": 2,
+  "_comment": "Vercel deployment configuration for Django app",
   "builds": [
     {
       "src": "deriv_platform/wsgi.py",
