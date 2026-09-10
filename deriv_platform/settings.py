@@ -170,12 +170,8 @@ GROQ_API_KEY = _env_secret("GROQ_API_KEY")
 GROQ_MODEL = _env_secret("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # ---------------------------------------------------------------------------
-# MT5 Live Trading Configuration (Windows-only, disabled on Vercel)
+# MT5 Live Trading Configuration - Removed for Vercel deployment (Windows-only)
 # ---------------------------------------------------------------------------
-MT5_PATH = os.getenv("MT5_PATH") or ""
-MT5_LOGIN = int(os.getenv("MT5_LOGIN") or "25305222") if os.getenv("MT5_LOGIN") else 0
-MT5_PASSWORD = os.getenv("MT5_PASSWORD") or ""
-MT5_SERVER = os.getenv("MT5_SERVER") or "Deriv-Demo"
 
 # ---------------------------------------------------------------------------
 # News Sentiment Analysis Configuration
