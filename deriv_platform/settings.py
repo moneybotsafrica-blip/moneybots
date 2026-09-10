@@ -6,6 +6,7 @@ analysis window powered by an ML signal engine ported from bot.py.
 No live order execution — paper positions only.
 """
 import os
+import logging
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -20,11 +21,24 @@ SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
 # Default to False in production (Vercel), True for local development
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
-# Default ALLOWED_HOSTS to include Vercel domains if not specified
-default_hosts = "localhost,127.0.0.1"
+ALLOWED_HOSTS = [
+    "moneybots.vercel.app",
+    ".vercel.app",
+    "localhost",
+    "127.0.0.1",
+]
+
+# Log configuration for debugging
 if os.environ.get("VERCEL"):
-    default_hosts = "localhost,127.0.0.1,.vercel.app"
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", default_hosts).split(",") if h.strip()]
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Running on Vercel - DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
+    logger.info(f"DATABASE_URL configured: {bool(os.getenv('DATABASE_URL'))}")
+    if SECRET_KEY == "insecure-dev-key-change-me":
+        logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
 
 # Log configuration for debugging
 import logging
@@ -80,7 +94,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "deriv_platform.urls"
 
-WSGI_APPLICATION = "deriv_platform.wsgi.application"
+WSGI_APPLICATION = "deriv_platform.wsgi.app"
 
 # For Vercel deployment, use WSGI instead of ASGI
 # Vercel's Django deployment uses WSGI, so we disable ASGI_APPLICATION in production
