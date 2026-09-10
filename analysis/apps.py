@@ -17,9 +17,14 @@ class AnalysisConfig(AppConfig):
             return
 
         # Skip during management commands (including collectstatic)
-        skip_commands = ['migrate', 'makemigrations', 'collectstatic', 'createsuperuser', 'shell', 'test']
+        skip_commands = ['migrate', 'makemigrations', 'collectstatic', 'createsuperuser', 'shell', 'test', 'check']
         if any(cmd in sys.argv for cmd in skip_commands):
             print(f"[Analysis] Skipping startup for command: {' '.join(sys.argv)}")
+            return
+
+        # Additional safety: skip if we're in production mode without explicit start
+        if not os.environ.get("ANALYSIS_AUTO_START", "false").lower() == "true":
+            print("[Analysis] ANALYSIS_AUTO_START not set to true, skipping automatic startup")
             return
 
         print("[Analysis] ready() method called")
