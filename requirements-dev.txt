@@ -1,0 +1,9 @@
+# Local development dependencies.
+# Installs everything in the production set plus the ASGI/Channels stack used
+# to run live WebSocket features locally (`python manage.py runserver` in ASGI
+# mode). These are excluded from the Vercel serverless build on purpose.
+-r requirements.txt
+
+channels>=4.1
+channels-redis>=4.2         # optional: swap InMemoryChannelLayer for Redis
+daphne>=4.1

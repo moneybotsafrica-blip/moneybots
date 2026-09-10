@@ -1,22 +1,19 @@
+# Production (Vercel serverless / WSGI) dependencies.
+# The ASGI/Channels stack (channels, daphne, twisted, ...) is intentionally
+# NOT listed here: Vercel runs this app under WSGI and excludes Channels from
+# INSTALLED_APPS, and that stack adds ~50MB that pushes the function toward the
+# 250MB unzipped serverless limit. For local ASGI development install the full
+# set with:  pip install -r requirements-dev.txt
 Django>=5.0,<5.3
 dj-database-url>=2.0
 psycopg[binary]>=3.1
-channels>=4.1
-channels-redis>=4.2          # optional: swap InMemoryChannelLayer for Redis in production
-daphne>=4.1
 whitenoise>=6.0
-websockets>=12.0
+websockets>=12.0           # lightweight client used by the analysis services
 pandas>=2.2
-# scikit-learn>=1.4    # ML library - removed for Vercel deployment size limits
-# xgboost>=2.0         # ML library - removed for Vercel deployment size limits
-# lightgbm>=4.3        # ML library - removed for Vercel deployment size limits
-# joblib>=1.4          # ML library - removed for Vercel deployment size limits
-# scipy>=1.13          # ML library - removed for Vercel deployment size limits
 python-dotenv>=1.0
 requests>=2.31             # AI chat panel (Claude API) + Forex Factory calendar feed
-# MetaTrader5>=5.0.45     # MT5 live trading integration (Windows-only, removed for Vercel)
 aiohttp>=3.9               # Async HTTP for news sentiment
 feedparser>=6.0            # RSS feed parsing for news
 django-allauth>=0.60.0     # Google OAuth authentication
-pytz>=2023.3                # Timezone support for market hours
-numpy>=1.24.0               # Numerical operations for ML strategies
+pytz>=2023.3               # Timezone support for market hours
+numpy>=1.24.0              # Numerical operations for ML strategies
