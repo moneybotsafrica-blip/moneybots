@@ -209,6 +209,41 @@ python manage.py runserver
 
 ## Troubleshooting
 
+### Internal Server Error (500 Error)
+If you see "Internal Server Error" when accessing your deployed site:
+
+**1. Check Environment Variables**
+- Go to Vercel → Project → Settings → Environment Variables
+- Ensure these are set for Production:
+  - `SECRET_KEY` (generate a strong random key)
+  - `DATABASE_URL` (PostgreSQL connection string)
+  - `ALLOWED_HOSTS=.vercel.app,your-domain.com`
+  - `DEBUG=False`
+
+**2. Check Vercel Function Logs**
+- Go to Vercel → Project → Functions
+- Look for error messages in the function logs
+- Common errors:
+  - "SECRET_KEY not set" → Add SECRET_KEY environment variable
+  - "DATABASE_URL not set" → Add DATABASE_URL environment variable
+  - "ALLOWED_HOSTS" errors → Check ALLOWED_HOSTS configuration
+
+**3. Verify Database Connection**
+- Ensure `DATABASE_URL` is correctly formatted
+- Test the connection string locally first
+- Check if PostgreSQL database is accessible
+
+**4. Check Django Settings**
+- The application now includes logging for debugging
+- Check Vercel logs for configuration warnings
+- Look for "SECURITY WARNING" messages about default SECRET_KEY
+
+**5. Common Issues**
+- **Missing SECRET_KEY**: Generate one with `python -c "import secrets; print(secrets.token_urlsafe(50))"`
+- **Incorrect ALLOWED_HOSTS**: Ensure `.vercel.app` is included
+- **Database not migrated**: Run `python vercel_migrate.py` after deployment
+- **DEBUG=True in production**: Set `DEBUG=False` in Vercel environment variables
+
 ### Build Failures - Migration Errors
 If you see "settings.DATABASES is improperly configured" during build:
 - **This is expected** - migrations are not run during build

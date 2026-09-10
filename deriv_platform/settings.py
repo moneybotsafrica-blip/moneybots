@@ -26,8 +26,20 @@ if os.environ.get("VERCEL"):
     default_hosts = "localhost,127.0.0.1,.vercel.app"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", default_hosts).split(",") if h.strip()]
 
+# Log configuration for debugging
+import logging
+if os.environ.get("VERCEL"):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Running on Vercel - DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
+    logger.info(f"DATABASE_URL configured: {bool(os.getenv('DATABASE_URL'))}")
+    if SECRET_KEY == "insecure-dev-key-change-me":
+        logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
+
 INSTALLED_APPS = [
-    "daphne",
     "whitenoise.runserver_nostatic",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -36,7 +48,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
-    "channels",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -49,6 +60,11 @@ INSTALLED_APPS = [
     "assistant",
     "stocks",
 ]
+
+# Only add Channels-related apps for local development (ASGI mode)
+if not os.environ.get("VERCEL"):
+    INSTALLED_APPS.insert(0, "daphne")
+    INSTALLED_APPS.insert(6, "channels")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -93,11 +109,13 @@ ASGI_APPLICATION = "deriv_platform.asgi.application"
 # Analysis loop now runs integrated with the main Django server process
 # using Django's startup signal. InMemoryChannelLayer works fine for
 # single-process operation.
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+# Only configure CHANNEL_LAYERS for local development (ASGI mode)
+if not os.environ.get("VERCEL"):
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
     }
-}
 
 # Use SQLite for development, PostgreSQL for production
 DATABASE_URL = os.getenv("DATABASE_URL")
