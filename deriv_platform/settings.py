@@ -23,6 +23,8 @@ IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_PRODUCTION = IS_VERCEL or not DEBUG
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-for-deployment")
+if IS_PRODUCTION and SECRET_KEY == "django-insecure-default-key-for-deployment":
+    raise ImproperlyConfigured("SECRET_KEY must be set for production deployment")
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -126,16 +128,17 @@ if DATABASE_URL:
         "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
 else:
-    # Use SQLite as fallback for development and production (not ideal for production but allows deployment)
+    if IS_PRODUCTION:
+        raise ImproperlyConfigured(
+            "DATABASE_URL must be set for production deployment; "
+            "configure a PostgreSQL database in Vercel"
+        )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
-    if IS_PRODUCTION:
-        logger = logging.getLogger(__name__)
-        logger.warning("Using SQLite in production. Consider setting DATABASE_URL for PostgreSQL in production environments.")
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
