@@ -1,5 +1,0 @@
-{
-  "buildCommand": "python vercel_build.py",
-  "outputDirectory": "staticfiles",
-  "installCommand": "pip install -r requirements.txt"
-}

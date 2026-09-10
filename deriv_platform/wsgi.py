@@ -16,6 +16,8 @@ if os.environ.get("VERCEL"):
 
 try:
     application = get_wsgi_application()
+    # Vercel requires the app variable for WSGI applications
+    app = application
     if os.environ.get("VERCEL"):
         logger.info("WSGI application loaded successfully")
 except Exception as e:

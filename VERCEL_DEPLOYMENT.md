@@ -1,6 +1,6 @@
 # Vercel Deployment Guide
 
-This guide explains how to deploy the Django trading dashboard to Vercel with proper configuration.
+This guide explains how to deploy the Django trading dashboard to Vercel using Vercel's zero-configuration Django support (added April 2026).
 
 ## Important Security Notes
 
@@ -16,28 +16,22 @@ The `.env` file has been removed from the repository and is now properly gitigno
 
 ### What Was Fixed
 
-1. **Removed custom `vercel.json`** - Replaced with minimal build configuration
+1. **Removed custom `vercel.json`** - Now using Vercel's zero-configuration Django support
 2. **Fixed production settings** - DEBUG now defaults to False, ALLOWED_HOSTS includes Vercel domains
-3. **Moved database migrations** - Migrations now run in `vercel_build.py` instead of `asgi.py`
+3. **Fixed WSGI configuration** - Added `app` variable for Vercel's Python runtime
 4. **Disabled Channels/WebSockets** - Vercel doesn't support WebSocket connections, so ASGI is disabled in production
-5. **Added proper build script** - `vercel_build.py` handles migrations and static file collection
+5. **Removed build script dependency** - Vercel automatically handles static files and dependencies
 
-### New Build Configuration
+### Vercel Zero-Configuration Support
 
-The project now uses custom scripts for deployment:
+Vercel now has native Django support (added April 2026) that automatically:
+- Detects Django from `manage.py`
+- Installs dependencies from `requirements.txt`
+- Collects static files automatically
+- Serves the application using WSGI
+- Handles Python runtime configuration
 
-**`vercel_build.py`** (runs during Vercel build):
-- Collects static files for production
-- **Skips database migrations** (run separately to avoid build failures)
-- Provides clear error messages for build failures
-
-**`vercel_migrate.py`** (run manually after deployment):
-- Runs Django migrations against production database
-- Validates DATABASE_URL is configured
-- Tests database connection before applying migrations
-- Provides clear error messages for migration failures
-
-**Important:** Database migrations are not run during the Vercel build process. This prevents build failures when the database is not available during the build. Run migrations separately against your production database using `vercel_migrate.py`.
+**No custom `vercel.json` or build scripts are needed.** Vercel handles everything automatically.
 
 ## Required Vercel Environment Variables
 
@@ -99,7 +93,8 @@ git commit -m "Prepare for Vercel deployment"
 1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
 2. Create a new project
 3. Import your Git repository
-4. Vercel will automatically detect Django
+4. Vercel will automatically detect Django and configure everything
+5. No custom build configuration needed
 
 ### 3. Configure Environment Variables
 In Vercel project settings → Environment Variables:
@@ -108,7 +103,7 @@ In Vercel project settings → Environment Variables:
 
 ### 4. Deploy
 - Push your changes to trigger deployment
-- Vercel will run `vercel_build.py` automatically
+- Vercel will automatically build and deploy
 - Monitor build logs for any errors
 
 ### 5. Run Database Migrations
@@ -154,19 +149,20 @@ python manage.py migrate
 
 ## Deployment Architecture
 
-The deployment follows a safer architecture that separates build and database operations:
+The deployment uses Vercel's zero-configuration Django support:
 
 ```
-Vercel Build Process:
-  1. Install dependencies (pip install -r requirements.txt)
-  2. Collect static files (python vercel_build.py)
-  3. Deploy Django application
-  4. Start application with WSGI
+Vercel Build Process (Automatic):
+  1. Detect Django from manage.py
+  2. Install dependencies (pip install -r requirements.txt)
+  3. Collect static files automatically
+  4. Deploy Django application
+  5. Start application with WSGI
 
 Runtime (After Deployment):
   1. Application connects to PostgreSQL via DATABASE_URL
   2. Django runs with production settings
-  3. Static files served from staticfiles/
+  3. Static files served automatically
 ```
 
 **Why Migrations Are Separate:**
@@ -227,6 +223,7 @@ If you see "Internal Server Error" when accessing your deployed site:
   - "SECRET_KEY not set" → Add SECRET_KEY environment variable
   - "DATABASE_URL not set" → Add DATABASE_URL environment variable
   - "ALLOWED_HOSTS" errors → Check ALLOWED_HOSTS configuration
+  - "app not found" → Check wsgi.py exposes `app` variable
 
 **3. Verify Database Connection**
 - Ensure `DATABASE_URL` is correctly formatted
@@ -243,11 +240,12 @@ If you see "Internal Server Error" when accessing your deployed site:
 - **Incorrect ALLOWED_HOSTS**: Ensure `.vercel.app` is included
 - **Database not migrated**: Run `python vercel_migrate.py` after deployment
 - **DEBUG=True in production**: Set `DEBUG=False` in Vercel environment variables
+- **WSGI configuration**: Ensure wsgi.py exposes both `application` and `app` variables
 
 ### Build Failures - Migration Errors
 If you see "settings.DATABASES is improperly configured" during build:
 - **This is expected** - migrations are not run during build
-- The build script only collects static files
+- Vercel's automatic build only collects static files
 - Run migrations separately (see "Run Database Migrations" section above)
 - Ensure `DATABASE_URL` is set in Vercel environment variables for runtime
 
@@ -255,6 +253,7 @@ If you see "settings.DATABASES is improperly configured" during build:
 - Check that all required environment variables are configured
 - Verify dependencies are correctly specified in requirements.txt
 - Check build logs for specific error messages
+- Ensure `manage.py` exists in the project root
 
 ### Static Files Not Loading
 - Verify `STATIC_ROOT` is properly configured
@@ -284,6 +283,8 @@ If you see "settings.DATABASES is improperly configured" during build:
 - [x] Configure HTTPS (automatic on Vercel)
 - [x] Review and update environment variables
 - [x] Run database migrations separately using `vercel_migrate.py`
+- [x] Remove custom build configuration (use Vercel zero-config)
+- [x] Fix wsgi.py to expose `app` variable for Vercel runtime
 
 ## Additional Resources
 
@@ -291,6 +292,7 @@ If you see "settings.DATABASES is improperly configured" during build:
 - [Django Deployment Checklist](https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/)
 - [PostgreSQL on Vercel](https://vercel.com/docs/storage/vercel-postgres)
 - [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables)
+- [Vercel Python Runtime](https://vercel.com/docs/runtimes/python)
 
 ## Support
 

@@ -2,6 +2,7 @@
 """
 Vercel health check script to validate configuration before deployment.
 This script checks that all required environment variables are set correctly.
+Note: Vercel now uses zero-configuration Django support, so no custom build scripts are needed.
 """
 import os
 import sys
@@ -84,9 +85,36 @@ def check_environment():
         print("✗ SECRET_KEY is not set")
         all_good = False
     
+    print("\n=== File Checks ===")
+    
+    # Check if wsgi.py exists and has proper configuration
+    wsgi_path = os.path.join(os.path.dirname(__file__), 'deriv_platform', 'wsgi.py')
+    if os.path.exists(wsgi_path):
+        try:
+            with open(wsgi_path, 'r') as f:
+                wsgi_content = f.read()
+                if 'app = application' in wsgi_content:
+                    print("✓ wsgi.py properly exposes 'app' variable for Vercel")
+                else:
+                    print("✗ WARNING: wsgi.py may not expose 'app' variable for Vercel")
+                    all_good = False
+        except Exception as e:
+            print(f"⚠ Could not check wsgi.py: {e}")
+    else:
+        print("✗ wsgi.py not found")
+        all_good = False
+    
+    # Check if vercel.json exists (should not exist for zero-config)
+    vercel_json_path = os.path.join(os.path.dirname(__file__), 'vercel.json')
+    if os.path.exists(vercel_json_path):
+        print("⚠ WARNING: vercel.json exists - Vercel zero-config Django support doesn't need custom build config")
+    else:
+        print("✓ No custom vercel.json (using Vercel zero-config Django support)")
+    
     print("\n=== Summary ===")
     if all_good:
         print("✓ All critical checks passed. Configuration looks good!")
+        print("Vercel will automatically detect Django and configure the deployment.")
         return 0
     else:
         print("✗ Some critical issues found. Please fix them before deploying.")
