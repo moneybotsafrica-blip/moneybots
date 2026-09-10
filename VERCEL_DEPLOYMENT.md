@@ -24,10 +24,20 @@ The `.env` file has been removed from the repository and is now properly gitigno
 
 ### New Build Configuration
 
-The project now uses a custom build script (`vercel_build.py`) that:
-- Runs database migrations if `DATABASE_URL` is configured
+The project now uses custom scripts for deployment:
+
+**`vercel_build.py`** (runs during Vercel build):
 - Collects static files for production
+- **Skips database migrations** (run separately to avoid build failures)
 - Provides clear error messages for build failures
+
+**`vercel_migrate.py`** (run manually after deployment):
+- Runs Django migrations against production database
+- Validates DATABASE_URL is configured
+- Tests database connection before applying migrations
+- Provides clear error messages for migration failures
+
+**Important:** Database migrations are not run during the Vercel build process. This prevents build failures when the database is not available during the build. Run migrations separately against your production database using `vercel_migrate.py`.
 
 ## Required Vercel Environment Variables
 
@@ -44,8 +54,10 @@ ALLOWED_HOSTS=.vercel.app,your-custom-domain.com
 ```
 DATABASE_URL=postgresql://user:password@host:port/database
 ```
+- **Critical**: Must be set for production deployment
 - Create a PostgreSQL database in Vercel or use an external Postgres service
 - The project will fallback to SQLite locally, but PostgreSQL is required for production
+- Note: Migrations are not run during build - run them separately (see deployment steps)
 
 ### Optional API Keys
 ```
@@ -99,11 +111,69 @@ In Vercel project settings → Environment Variables:
 - Vercel will run `vercel_build.py` automatically
 - Monitor build logs for any errors
 
-### 5. Post-Deployment
+### 5. Run Database Migrations
+**Important:** Migrations are not run during the build process. Run them separately:
+
+**Option A: Using Vercel CLI (Recommended for Vercel Postgres)**
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Pull environment variables locally
+vercel env pull .env.local
+
+# Run migrations using the provided script
+python vercel_migrate.py
+```
+
+**Option B: Using Vercel Postgres Dashboard**
+1. Go to Vercel Dashboard → Storage → Your Database
+2. Use the "Query" or "Migration" feature to run Django migrations
+3. Or connect to the database directly and run migrations
+
+**Option C: External PostgreSQL**
+```bash
+# Set DATABASE_URL environment variable locally
+export DATABASE_URL="postgresql://user:password@host:5432/database"
+
+# Run migrations using the provided script
+python vercel_migrate.py
+```
+
+**Option D: Direct Django Command**
+```bash
+# If you have DATABASE_URL set in your environment
+python manage.py migrate
+```
+
+### 6. Post-Deployment
 - Test the deployed application
 - Verify database migrations ran successfully
 - Check that static files are loading correctly
 - Test authentication if Google OAuth is configured
+
+## Deployment Architecture
+
+The deployment follows a safer architecture that separates build and database operations:
+
+```
+Vercel Build Process:
+  1. Install dependencies (pip install -r requirements.txt)
+  2. Collect static files (python vercel_build.py)
+  3. Deploy Django application
+  4. Start application with WSGI
+
+Runtime (After Deployment):
+  1. Application connects to PostgreSQL via DATABASE_URL
+  2. Django runs with production settings
+  3. Static files served from staticfiles/
+```
+
+**Why Migrations Are Separate:**
+- Build environment may not have database access
+- Prevents build failures due to database connectivity issues
+- Allows for more controlled database schema changes
+- Matches industry best practices for production deployments
 
 ## Important Limitations
 
@@ -139,10 +209,17 @@ python manage.py runserver
 
 ## Troubleshooting
 
-### Build Failures
-- Check that `DATABASE_URL` is set correctly
-- Verify PostgreSQL credentials are valid
-- Ensure all required environment variables are configured
+### Build Failures - Migration Errors
+If you see "settings.DATABASES is improperly configured" during build:
+- **This is expected** - migrations are not run during build
+- The build script only collects static files
+- Run migrations separately (see "Run Database Migrations" section above)
+- Ensure `DATABASE_URL` is set in Vercel environment variables for runtime
+
+### Build Failures - Other Issues
+- Check that all required environment variables are configured
+- Verify dependencies are correctly specified in requirements.txt
+- Check build logs for specific error messages
 
 ### Static Files Not Loading
 - Verify `STATIC_ROOT` is properly configured
@@ -153,6 +230,8 @@ python manage.py runserver
 - Confirm PostgreSQL is accessible from Vercel
 - Check database connection string format
 - Verify database user has proper permissions
+- Ensure DATABASE_URL is set in Vercel environment variables
+- If using SQLite fallback in production, this will cause data loss between deployments
 
 ### Authentication Issues
 - Ensure Google OAuth redirect URIs include your Vercel domain
@@ -169,12 +248,14 @@ python manage.py runserver
 - [x] Set strong `SECRET_KEY`
 - [x] Configure HTTPS (automatic on Vercel)
 - [x] Review and update environment variables
+- [x] Run database migrations separately using `vercel_migrate.py`
 
 ## Additional Resources
 
 - [Vercel Django Documentation](https://vercel.com/docs/frameworks/django)
 - [Django Deployment Checklist](https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/)
 - [PostgreSQL on Vercel](https://vercel.com/docs/storage/vercel-postgres)
+- [Vercel Environment Variables](https://vercel.com/docs/projects/environment-variables)
 
 ## Support
 
