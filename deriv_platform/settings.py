@@ -94,7 +94,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "deriv_platform.urls"
 
-WSGI_APPLICATION = "deriv_platform.wsgi.app"
+WSGI_APPLICATION = "deriv_platform.wsgi.application"
 
 # For Vercel deployment, use WSGI instead of ASGI
 # Vercel's Django deployment uses WSGI, so we disable ASGI_APPLICATION in production
@@ -116,9 +116,6 @@ TEMPLATES = [
         },
     },
 ]
-
-WSGI_APPLICATION = "deriv_platform.wsgi.application"
-ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 # Analysis loop now runs integrated with the main Django server process
 # using Django's startup signal. InMemoryChannelLayer works fine for
