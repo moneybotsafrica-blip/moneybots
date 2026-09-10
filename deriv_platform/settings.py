@@ -16,8 +16,15 @@ if env_path.exists():
     load_dotenv(env_path, override=True)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
-DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
+
+# Default to False in production (Vercel), True for local development
+DEBUG = os.getenv("DEBUG", "False") == "True"
+
+# Default ALLOWED_HOSTS to include Vercel domains if not specified
+default_hosts = "localhost,127.0.0.1"
+if os.environ.get("VERCEL"):
+    default_hosts = "localhost,127.0.0.1,.vercel.app"
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", default_hosts).split(",") if h.strip()]
 
 INSTALLED_APPS = [
     "daphne",
@@ -56,6 +63,13 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "deriv_platform.urls"
+
+WSGI_APPLICATION = "deriv_platform.wsgi.application"
+
+# For Vercel deployment, use WSGI instead of ASGI
+# Vercel's Django deployment uses WSGI, so we disable ASGI_APPLICATION in production
+if not os.environ.get("VERCEL"):
+    ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 TEMPLATES = [
     {

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "python manage.py collectstatic --noinput",
+  "buildCommand": "python vercel_build.py",
   "outputDirectory": "staticfiles",
   "installCommand": "pip install -r requirements.txt"
 }
