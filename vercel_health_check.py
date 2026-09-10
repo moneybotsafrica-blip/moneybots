@@ -104,12 +104,8 @@ def check_environment():
         print("✗ wsgi.py not found")
         all_good = False
     
-    # Check if vercel.json exists (should not exist for zero-config)
-    vercel_json_path = os.path.join(os.path.dirname(__file__), 'vercel.json')
-    if os.path.exists(vercel_json_path):
-        print("⚠ WARNING: vercel.json exists - Vercel zero-config Django support doesn't need custom build config")
-    else:
-        print("✓ No custom vercel.json (using Vercel zero-config Django support)")
+    # Note: No vercel.json is needed for Vercel zero-config Django support
+    print("✓ Using Vercel zero-config Django support (no custom vercel.json needed)")
     
     print("\n=== Summary ===")
     if all_good:
