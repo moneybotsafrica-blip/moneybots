@@ -75,8 +75,13 @@ INSTALLED_APPS = [
     "stocks",
 ]
 
-# Only add Channels-related apps for local development (ASGI mode)
-if not os.environ.get("VERCEL"):
+# Only add Channels-related apps for local development (ASGI mode).
+# Vercel deployments are always non-debug, even if the platform variable is
+# unavailable during build-time settings discovery.
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+IS_PRODUCTION = IS_VERCEL or not DEBUG
+
+if not IS_PRODUCTION:
     INSTALLED_APPS.insert(0, "daphne")
     INSTALLED_APPS.insert(6, "channels")
 
@@ -96,9 +101,8 @@ ROOT_URLCONF = "deriv_platform.urls"
 
 WSGI_APPLICATION = "deriv_platform.wsgi.application"
 
-# For Vercel deployment, use WSGI instead of ASGI
-# Vercel's Django deployment uses WSGI, so we disable ASGI_APPLICATION in production
-if not os.environ.get("VERCEL"):
+# For Vercel deployment, use WSGI instead of ASGI.
+if not IS_PRODUCTION:
     ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 TEMPLATES = [
@@ -121,7 +125,7 @@ TEMPLATES = [
 # using Django's startup signal. InMemoryChannelLayer works fine for
 # single-process operation.
 # Only configure CHANNEL_LAYERS for local development (ASGI mode)
-if not os.environ.get("VERCEL"):
+if not IS_PRODUCTION:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels.layers.InMemoryChannelLayer",
@@ -174,7 +178,7 @@ DERIV_WS_URL = os.getenv("DERIV_WS_URL") or f"wss://ws.derivws.com/websockets/v3
 # Paper trading (no live execution anywhere in this project)
 # ---------------------------------------------------------------------------
 # Disabled for Vercel deployment to simplify configuration
-PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE") or "10") if not os.environ.get("VERCEL") else 0
+PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE") or "10") if not IS_PRODUCTION else 0
 
 # ---------------------------------------------------------------------------
 # Analysis engine
