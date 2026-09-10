@@ -20,6 +20,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
 
 # Default to False in production (Vercel), True for local development
 DEBUG = os.getenv("DEBUG", "False") == "True"
+# Never serve with DEBUG enabled on Vercel, even if a stray DEBUG=True env var
+# is present. Running Django with DEBUG=True in production leaks tracebacks and
+# settings, so production is always locked to DEBUG=False.
+if os.environ.get("VERCEL"):
+    DEBUG = False
 
 ALLOWED_HOSTS = [
     "moneybots.vercel.app",
