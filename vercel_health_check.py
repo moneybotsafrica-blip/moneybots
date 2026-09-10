@@ -93,8 +93,8 @@ def check_environment():
         try:
             with open(wsgi_path, 'r') as f:
                 wsgi_content = f.read()
-                if 'app = application' in wsgi_content:
-                    print("✓ wsgi.py properly exposes 'app' variable for Vercel")
+                if 'app = get_wsgi_application()' in wsgi_content and 'application = app' in wsgi_content:
+                    print("✓ wsgi.py properly exposes WSGI variables for Vercel")
                 else:
                     print("✗ WARNING: wsgi.py may not expose 'app' variable for Vercel")
                     all_good = False

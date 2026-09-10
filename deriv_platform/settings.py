@@ -9,6 +9,7 @@ import os
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Try to load .env file if it exists, but don't fail if it doesn't (Vercel environment)
@@ -16,33 +17,26 @@ env_path = BASE_DIR / ".env"
 if env_path.exists():
     load_dotenv(env_path, override=True)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
-
 # Default to False in production (Vercel), True for local development
 DEBUG = os.getenv("DEBUG", "False") == "True"
+IS_VERCEL = bool(os.environ.get("VERCEL"))
+IS_PRODUCTION = IS_VERCEL or not DEBUG
+
+SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
+if IS_PRODUCTION and SECRET_KEY == "insecure-dev-key-change-me":
+    raise ImproperlyConfigured("SECRET_KEY must be set for production deployment")
 
 ALLOWED_HOSTS = [
-    "moneybots.vercel.app",
-    ".vercel.app",
-    "localhost",
-    "127.0.0.1",
+    host.strip()
+    for host in os.getenv(
+        "ALLOWED_HOSTS",
+        ".vercel.app,localhost,127.0.0.1",
+    ).split(",")
+    if host.strip()
 ]
 
-# Log configuration for debugging
-if os.environ.get("VERCEL"):
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    logger = logging.getLogger(__name__)
-    logger.warning(f"Running on Vercel - DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
-    logger.info(f"DATABASE_URL configured: {bool(os.getenv('DATABASE_URL'))}")
-    if SECRET_KEY == "insecure-dev-key-change-me":
-        logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
-
-# Log configuration for debugging
-import logging
-if os.environ.get("VERCEL"):
+# Log production configuration without exposing secret values.
+if IS_PRODUCTION:
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -74,12 +68,6 @@ INSTALLED_APPS = [
     "assistant",
     "stocks",
 ]
-
-# Only add Channels-related apps for local development (ASGI mode).
-# Vercel deployments are always non-debug, even if the platform variable is
-# unavailable during build-time settings discovery.
-IS_VERCEL = bool(os.environ.get("VERCEL"))
-IS_PRODUCTION = IS_VERCEL or not DEBUG
 
 if not IS_PRODUCTION:
     INSTALLED_APPS.insert(0, "daphne")
@@ -132,7 +120,7 @@ if not IS_PRODUCTION:
         }
     }
 
-# Use SQLite for development, PostgreSQL for production
+# Use SQLite locally and require PostgreSQL in production.
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     import dj_database_url
@@ -140,8 +128,11 @@ if DATABASE_URL:
         "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
     }
 else:
-    # For local development or build time - use SQLite in project directory
-    # Note: In production on Vercel, DATABASE_URL should be set via environment variables
+    if IS_PRODUCTION:
+        raise ImproperlyConfigured(
+            "DATABASE_URL must be set for production deployment; "
+            "configure a PostgreSQL database in Vercel"
+        )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
