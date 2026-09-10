@@ -22,11 +22,6 @@ class AnalysisConfig(AppConfig):
             print(f"[Analysis] Skipping startup for command: {' '.join(sys.argv)}")
             return
 
-        # Additional safety: skip if we're in production mode without explicit start
-        if not os.environ.get("ANALYSIS_AUTO_START", "false").lower() == "true":
-            print("[Analysis] ANALYSIS_AUTO_START not set to true, skipping automatic startup")
-            return
-
         print("[Analysis] ready() method called")
 
         # Prevent multiple startups (this method can be called multiple times)
