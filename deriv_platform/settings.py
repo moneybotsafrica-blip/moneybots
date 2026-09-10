@@ -22,13 +22,13 @@ DEBUG = os.getenv("DEBUG", "False") == "True"
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_PRODUCTION = IS_VERCEL or not DEBUG
 
-SECRET_KEY = os.getenv("SECRET_KEY", "insecure-dev-key-change-me")
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-for-deployment")
 
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv(
         "ALLOWED_HOSTS",
-        ".vercel.app,localhost,127.0.0.1",
+        ".vercel.app,localhost,127.0.0.1,moneybots.vercel.app",
     ).split(",")
     if host.strip()
 ]
