@@ -1,6 +1,9 @@
 import os
 
 from django.core.asgi import get_asgi_application
+from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
+from deriv_platform.routing import application as websocket_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "deriv_platform.settings")
 
@@ -33,5 +36,10 @@ async def _application(scope, receive, send):
     await django_asgi_app(scope, receive, send)
 
 
-application = _application
+# Combine HTTP and WebSocket support
+application = ProtocolTypeRouter({
+    "http": _application,
+    "websocket": AllowedHostsOriginValidator(websocket_application),
+})
+
 app = application

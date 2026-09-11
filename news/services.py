@@ -13,7 +13,9 @@ from django.core.cache import cache
 
 CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
 CACHE_KEY = "ff_calendar_thisweek"
-CACHE_SECONDS = 900  # 15 min — well under FF's rate limit
+CACHE_SECONDS = 1800  # 30 min — extra buffer under FF's rate limit (2 req / 5 min)
+RATE_LIMIT_COOLDOWN_KEY = "ff_calendar_cooldown"
+RATE_LIMIT_COOLDOWN_SECONDS = 300  # 5 min cooldown after rate limit
 
 IMPACT_ORDER = {"High": 0, "Medium": 1, "Low": 2, "Holiday": 3, "Non-Economic": 3}
 
@@ -51,13 +53,31 @@ def _parse(raw_events):
 
 
 def get_calendar():
-    """Returns (events, is_live) — events grouped by day, newest fetch cached."""
+    """Returns (events, is_live) — events grouped by day, newest fetch cached.
+    Returns stale cached data if rate-limited to prevent hammering FF's API."""
     cached = cache.get(CACHE_KEY)
     if cached is not None:
         return cached, True
 
+    # Check if we're in rate limit cooldown
+    cooldown = cache.get(RATE_LIMIT_COOLDOWN_KEY)
+    if cooldown is not None:
+        # Return empty but don't hammer the API
+        return [], False
+
     try:
         resp = requests.get(CALENDAR_URL, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        
+        # Check for rate limit responses (FF returns 429 or HTML error page)
+        if resp.status_code == 429 or "Request Denied" in resp.text or "rate limit" in resp.text.lower():
+            # Set cooldown to prevent repeated requests
+            cache.set(RATE_LIMIT_COOLDOWN_KEY, True, RATE_LIMIT_COOLDOWN_SECONDS)
+            # If we have any cached data (even stale), return it
+            stale_cached = cache.get(CACHE_KEY)
+            if stale_cached is not None:
+                return stale_cached, False
+            return [], False
+        
         resp.raise_for_status()
         events = _parse(resp.json())
         if events:

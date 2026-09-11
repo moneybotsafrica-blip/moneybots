@@ -5,7 +5,13 @@
  * events to a render function; only markup density differs.
  *
  * Backend: GET /news/relevant/?symbol=<key>&market_name=<display name>
- * -> { is_live, currencies, is_synthetic, events: [...] }
+ * -> { status, is_live, currencies, is_synthetic, events: [...] }
+ * 
+ * Status values:
+ * - "live": Fresh data from Forex Factory
+ * - "cached": Using cached data (rate limit reached or within cache window)
+ * - "unavailable": No data available
+ * 
  * Forex/gold markets get events for their currency legs; synthetic and
  * volatility indices (no real underlying) fall back to global high-impact
  * events, flagged via is_synthetic so the UI can explain why.
@@ -60,10 +66,17 @@
                 : "—";
         }
 
-        if (!data.is_live) {
-            container.innerHTML = `<div class="ai-news-empty">News feed unavailable right now — try again shortly.</div>`;
+        // Handle different data source statuses
+        if (data.status === "unavailable") {
+            container.innerHTML = `<div class="ai-news-empty">News feed unavailable right now — Forex Factory rate limit reached. Showing cached data if available.</div>`;
             return;
         }
+        
+        if (data.status === "cached" && !events.length) {
+            container.innerHTML = `<div class="ai-news-empty">News feed using cached data. Live refresh in a few minutes.</div>`;
+            return;
+        }
+        
         if (!events.length) {
             container.innerHTML = data.is_synthetic
                 ? `<div class="ai-news-empty">Synthetic/volatility index — algorithmically generated, not driven by economic news. Showing nothing high-impact in range.</div>`
@@ -73,7 +86,7 @@
 
         const header = data.is_synthetic
             ? `<div class="ai-news-context">Synthetic index — no direct currency exposure. Showing global high-impact events for context.</div>`
-            : `<div class="ai-news-context">Tracking ${data.currencies.join(", ")} events.</div>`;
+            : `<div class="ai-news-context">Tracking ${data.currencies.join(", ")} events.${data.status === "cached" ? " (cached)" : ""}</div>`;
 
         container.innerHTML = (compact ? "" : header) + events.map((ev) => eventRow(ev, compact)).join("");
     }

@@ -1,8 +1,15 @@
 /*
  * Floating AI chart panel: Insight, Analysis, Chat.
  * Sends the open chart's symbol, live price, and candles to /api/ai/.
+ * 
+ * Features:
+ * - Multi-tab interface (Insight, Analysis, Gap Analysis, Chat)
+ * - Voice recording for questions and news analysis
+ * - Real-time chart data integration
+ * - AI-powered market analysis and recommendations
  */
 (function () {
+    // DOM Elements
     const fab = document.getElementById("brain-fab");
     if (!fab) return;
 
@@ -28,14 +35,18 @@
     const tabPanels = {
         insight: document.getElementById("brain-panel-insight"),
         analysis: document.getElementById("brain-panel-analysis"),
-        gaps: document.getElementById("brain-panel-gaps"),
         chat: document.getElementById("brain-panel-chat"),
     };
 
+    // State management
     const history = [];
     let open = false;
     let recorder = null;
     let recordingChunks = [];
+    let recordingStartTime = null;
+    let recordingTimer = null;
+    
+    // Technical indicator mapping for TradingView
     const STUDY_MAP = {
         RSI: "Relative Strength Index",
         MACD: "MACD",
@@ -46,6 +57,7 @@
         STOCHASTIC: "Stochastic",
     };
 
+    // Chart data functions
     function currentSymbol() {
         return window.currentChartSymbol || "";
     }
@@ -82,6 +94,17 @@
         };
     }
 
+    function validateChartPayload(payload) {
+        if (!payload.symbol) {
+            return { valid: false, error: "No symbol selected" };
+        }
+        if (!payload.candles || payload.candles.length === 0) {
+            return { valid: false, error: "No candle data available" };
+        }
+        return { valid: true };
+    }
+
+    // TradingView chart interaction functions
     function withChart(fn) {
         const widget = window.tradingViewWidget;
         if (!widget || typeof widget.activeChart !== "function") {
@@ -102,6 +125,7 @@
         return { success: true };
     }
 
+    // AI chart actions for TradingView integration
     window.aiChartActions = {
         addIndicator: function (name) {
             const mapped = STUDY_MAP[String(name || "").toUpperCase()] || name;
@@ -145,6 +169,7 @@
         },
     };
 
+    // UI state management functions
     function setOpen(next) {
         open = next;
         panel.classList.toggle("open", open);
@@ -189,10 +214,12 @@
         if (symbolLabel) symbolLabel.textContent = label;
     }
 
+    // Event listeners for UI interactions
     fab.addEventListener("click", () => setOpen(!open));
     closeBtn.addEventListener("click", () => setOpen(false));
     tabs.forEach((tab) => tab.addEventListener("click", () => setTab(tab.dataset.tab)));
 
+    // Insight panel elements and functions
     const dirBadge = document.getElementById("ai-dir-badge");
     const marketName = document.getElementById("ai-market-name");
     const updatedEl = document.getElementById("ai-updated");
@@ -210,6 +237,7 @@
         conf: document.getElementById("m-conf"),
     };
 
+    // Utility functions for formatting
     function fmt(n, digits) {
         const value = Number(n);
         if (!Number.isFinite(value)) return "—";
@@ -233,7 +261,13 @@
     const newsMarkets = document.getElementById("ai-news-markets");
     const analyzeNewsBtn = document.getElementById("analyze-news-btn");
     const newsBackBtn = document.getElementById("ai-news-back-btn");
+    const voiceNewsBtn = document.getElementById("brain-voice-news");
+    const newsForm = document.getElementById("news-form");
+    const newsInput = document.getElementById("news-input");
+    const attachBtn = document.querySelector(".brain-attach");
     let selectedNewsMarket = null;
+    let newsRecorder = null;
+    let newsRecordingChunks = [];
 
     async function fetchMarketsWithNews() {
         try {
@@ -306,6 +340,11 @@
         newsMarkets.style.display = 'none';
         newsList.style.display = 'block';
         analyzeNewsBtn.style.display = 'block';
+        if (newsForm) {
+            newsForm.style.display = 'flex';
+            // Clear any previous input
+            if (newsInput) newsInput.value = '';
+        }
 
         // Render news articles
         const newsHtml = newsArticles.map(article => {
@@ -332,6 +371,7 @@
         newsMarkets.style.display = 'block';
         newsList.style.display = 'none';
         analyzeNewsBtn.style.display = 'none';
+        if (newsForm) newsForm.style.display = 'none';
     }
 
     // Add click handler for back button
@@ -340,7 +380,10 @@
     }
 
     async function analyzeMarketNews() {
-        if (!selectedNewsMarket) return;
+        if (!selectedNewsMarket) {
+            alert("Please select a market first.");
+            return;
+        }
         
         analyzeNewsBtn.textContent = "Analyzing...";
         analyzeNewsBtn.disabled = true;
@@ -354,6 +397,11 @@
                     action: "analyze"
                 }),
             });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
             const data = await res.json();
             
             if (data.error) {
@@ -369,7 +417,8 @@
                 addMessage("ai", data.response || "Analysis completed for " + selectedNewsMarket);
             }
         } catch (e) {
-            alert("Could not reach the analysis API. Please check your internet connection.");
+            console.error("News analysis error:", e);
+            alert("Could not reach the analysis API. Please check your internet connection and try again.");
         } finally {
             analyzeNewsBtn.textContent = "Analyze Market News";
             analyzeNewsBtn.disabled = false;
@@ -379,6 +428,133 @@
     // Add click handler for analyze news button
     if (analyzeNewsBtn) {
         analyzeNewsBtn.addEventListener("click", analyzeMarketNews);
+    }
+
+    // Voice recording for news analysis
+    let newsRecordingStartTime = null;
+    let newsRecordingTimer = null;
+
+    async function startNewsRecording() {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            alert("Voice recording is not supported by this browser.");
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            newsRecordingChunks = [];
+            newsRecordingStartTime = Date.now();
+            newsRecorder = new MediaRecorder(stream);
+            
+            // Start recording timer
+            newsRecordingTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - newsRecordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                voiceNewsBtn.title = `Recording… ${minutes}:${seconds.toString().padStart(2, '0')} — Click to stop`;
+            }, 1000);
+            
+            newsRecorder.ondataavailable = (event) => {
+                if (event.data.size) newsRecordingChunks.push(event.data);
+            };
+            
+            newsRecorder.onstop = async () => {
+                clearInterval(newsRecordingTimer);
+                stream.getTracks().forEach((track) => track.stop());
+                voiceNewsBtn.classList.remove("is-recording");
+                voiceNewsBtn.disabled = true;
+                voiceNewsBtn.title = "Record voice for news analysis";
+                
+                try {
+                    const blob = new Blob(newsRecordingChunks, { type: newsRecorder.mimeType || "audio/webm" });
+                    const formData = new FormData();
+                    formData.append("audio", blob, "voice-news.webm");
+                    const response = await fetch("/api/ai/transcribe/", { method: "POST", body: formData });
+                    const data = await response.json();
+                    
+                    if (!response.ok || data.error) throw new Error(data.error || "Transcription failed.");
+                    
+                    // Put the transcribed text in the input field
+                    newsInput.value = data.text;
+                    newsInput.focus();
+                } catch (error) {
+                    alert(error.message || "Could not transcribe the recording.");
+                } finally {
+                    voiceNewsBtn.disabled = false;
+                }
+            };
+            
+            newsRecorder.start();
+            voiceNewsBtn.classList.add("is-recording");
+            voiceNewsBtn.title = "Recording… 0:00 — Click to stop";
+        } catch (error) {
+            alert("Microphone access was denied or unavailable.");
+        }
+    }
+
+    if (voiceNewsBtn) {
+        voiceNewsBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (newsRecorder && newsRecorder.state === "recording") {
+                newsRecorder.stop();
+            } else {
+                startNewsRecording();
+            }
+        });
+    }
+
+    // Prevent attach button from submitting form
+    if (attachBtn) {
+        attachBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // File attachment functionality can be added here
+            alert("File attachment feature coming soon!");
+        });
+    }
+
+    // News form submission handler
+    if (newsForm) {
+        newsForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const value = newsInput.value.trim();
+            if (!value || !selectedNewsMarket) return;
+            
+            // Switch to chat tab and send the news-related question
+            setTab("chat");
+            addMessage("user", `Analyze the news for ${selectedNewsMarket}: ${value}`);
+            
+            // Add thinking indicator
+            const thinking = addMessage("ai", "thinking");
+            
+            // Trigger the news analysis with the text input
+            fetch("/api/ai/news/", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    market: selectedNewsMarket,
+                    action: "analyze",
+                    question: value
+                }),
+            })
+            .then(res => res.json())
+            .then(analysisData => {
+                thinking.remove();
+                
+                if (analysisData.error) {
+                    addMessage("ai", "Analysis failed: " + analysisData.error);
+                } else {
+                    addMessage("ai", analysisData.response || "Analysis completed for " + selectedNewsMarket);
+                }
+            })
+            .catch(e => {
+                thinking.remove();
+                addMessage("ai", "Could not reach the analysis API. Please check your internet connection.");
+            });
+            
+            // Clear the input
+            newsInput.value = "";
+        });
     }
 
     async function refreshInsight() {
@@ -478,13 +654,6 @@
     const analysisStatus = document.getElementById("ai-analysis-status");
     const analysisCard = document.getElementById("ai-analysis-card");
 
-    const runGapBtn = document.getElementById("run-gap-analysis");
-    const gapStatus = document.getElementById("gap-analysis-status");
-    const gapCard = document.getElementById("gap-analysis-card");
-
-    const runStockBtn = document.getElementById("run-stock-analysis");
-    const stockCard = document.getElementById("stock-analysis-card");
-
     function paintAnalysis(data) {
         const analysis = data.analysis || {};
         const snapshot = data.snapshot || {};
@@ -510,11 +679,16 @@
 
     async function runChartAnalysis() {
         const payload = chartPayload();
-        if (!payload.symbol) {
-            analysisStatus.textContent = "Open a market on the chart first.";
+        const validation = validateChartPayload(payload);
+        
+        if (!validation.valid) {
+            analysisStatus.textContent = validation.error;
+            analysisStatus.style.color = "var(--warn)";
             return;
         }
+        
         analysisStatus.textContent = "Analyzing " + payload.symbol + "…";
+        analysisStatus.style.color = "var(--text-dim)";
         runBtn.disabled = true;
         try {
             if ((!payload.candles || payload.candles.length < 20) && window.marketDataService) {
@@ -545,16 +719,20 @@
             });
             const data = await res.json();
             if (data.error) {
-                analysisStatus.textContent = data.error;
+                analysisStatus.textContent = "Error: " + data.error;
+                analysisStatus.style.color = "var(--sell)";
                 if (data.snapshot) {
                     paintAnalysis(data);
                 }
                 return;
             }
             analysisStatus.textContent = data.name || payload.symbol;
+            analysisStatus.style.color = "var(--buy)";
             paintAnalysis(data);
         } catch (err) {
-            analysisStatus.textContent = "Could not reach the analysis API.";
+            console.error("Chart analysis error:", err);
+            analysisStatus.textContent = "Could not reach the analysis API. Please check your connection.";
+            analysisStatus.style.color = "var(--sell)";
         } finally {
             runBtn.disabled = false;
         }
@@ -562,310 +740,49 @@
 
     if (runBtn) runBtn.addEventListener("click", runChartAnalysis);
 
-    function paintGapAnalysis(data) {
-        gapCard.hidden = false;
-        const stats = data.gap_stats || {};
-        const gaps = data.gaps || [];
-        
-        document.getElementById("gap-total").textContent = stats.total_gaps || "—";
-        document.getElementById("gap-ups").textContent = stats.gap_ups || "—";
-        document.getElementById("gap-downs").textContent = stats.gap_downs || "—";
-        document.getElementById("gap-fill-rate").textContent = (stats.fill_rate != null) ? stats.fill_rate + "%" : "—";
-        document.getElementById("gap-avg-size").textContent = stats.avg_gap_size || "—";
-        document.getElementById("gap-avg-pct").textContent = (stats.avg_gap_percentage != null) ? stats.avg_gap_percentage + "%" : "—";
-        
-        const bias = document.getElementById("gap-bias");
-        const summary = document.getElementById("gap-summary");
-        
-        if (stats.gap_ups > stats.gap_downs) {
-            bias.textContent = "Bullish";
-            bias.className = "dir-badge buy";
-        } else if (stats.gap_downs > stats.gap_ups) {
-            bias.textContent = "Bearish";
-            bias.className = "dir-badge sell";
-        } else {
-            bias.textContent = "Neutral";
-            bias.className = "dir-badge neutral";
-        }
-        
-        summary.textContent = data.symbol || "—";
-        
-        // Render gap table
-        const tableBody = document.getElementById("gap-table-body");
-        tableBody.innerHTML = "";
-        
-        gaps.forEach(gap => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${gap.date}</td>
-                <td class="gap-type ${gap.type}">${gap.type === 'gap_up' ? '▲ Gap Up' : '▼ Gap Down'}</td>
-                <td class="${gap.gap_size > 0 ? 'positive' : 'negative'}">${gap.gap_size.toFixed(2)}</td>
-                <td class="gap-status ${gap.filled ? 'filled' : 'unfilled'}">${gap.filled ? 'Filled' : 'Unfilled'}</td>
-            `;
-            tableBody.appendChild(row);
-        });
-    }
-
-    async function runGapAnalysis() {
-        const symbol = currentSymbol();
-        if (!symbol) {
-            gapStatus.textContent = "Open a market on the chart first.";
-            return;
-        }
-        
-        gapStatus.textContent = "Analyzing gaps for " + symbol + "…";
-        runGapBtn.disabled = true;
-        
-        try {
-            // Extract exchange from symbol if available (e.g., NASDAQ:AAPL)
-            let exchange = "NASDAQ";
-            let cleanSymbol = symbol;
-            
-            if (symbol.includes(":")) {
-                const parts = symbol.split(":");
-                exchange = parts[0];
-                cleanSymbol = parts[1];
-            }
-            
-            const res = await fetch("/stocks/api/analyze-gaps/", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "X-CSRFToken": getCsrfToken()
-                },
-                body: JSON.stringify({
-                    symbol: cleanSymbol,
-                    exchange: exchange
-                }),
-            });
-            
-            const data = await res.json();
-            if (data.error) {
-                gapStatus.textContent = data.error;
-                return;
-            }
-            
-            gapStatus.textContent = data.symbol || symbol;
-            paintGapAnalysis(data);
-        } catch (err) {
-            gapStatus.textContent = "Could not reach the gap analysis API.";
-        } finally {
-            runGapBtn.disabled = false;
-        }
-    }
-
-    function getCsrfToken() {
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'csrftoken') {
-                return decodeURIComponent(value);
-            }
-        }
-        return '';
-    }
-
-    if (runGapBtn) runGapBtn.addEventListener("click", runGapAnalysis);
-
-    function paintStockAnalysis(data) {
-        stockCard.hidden = false;
-        const stock = data.stock || {};
-        
-        document.getElementById("stock-price").textContent = stock.price ? "$" + stock.price.toFixed(2) : "—";
-        document.getElementById("stock-change").textContent = stock.change ? (stock.change >= 0 ? "+" : "") + stock.change.toFixed(2) + "%" : "—";
-        document.getElementById("stock-change").className = "ai-metric-value " + (stock.change >= 0 ? "positive" : "negative");
-        document.getElementById("stock-volume").textContent = stock.volume ? formatVolume(stock.volume) : "—";
-        document.getElementById("stock-high").textContent = stock.high ? "$" + stock.high.toFixed(2) : "—";
-        document.getElementById("stock-low").textContent = stock.low ? "$" + stock.low.toFixed(2) : "—";
-        document.getElementById("stock-marketcap").textContent = stock.market_cap ? formatMarketCap(stock.market_cap) : "—";
-        document.getElementById("stock-pe").textContent = stock.pe_ratio ? stock.pe_ratio.toFixed(2) : "—";
-        document.getElementById("stock-52high").textContent = stock.week52_high ? "$" + stock.week52_high.toFixed(2) : "—";
-        document.getElementById("stock-52low").textContent = stock.week52_low ? "$" + stock.week52_low.toFixed(2) : "—";
-        
-        // Additional technical indicators
-        document.getElementById("stock-ma50").textContent = stock.ma50 ? "$" + stock.ma50.toFixed(2) : "—";
-        document.getElementById("stock-ma200").textContent = stock.ma200 ? "$" + stock.ma200.toFixed(2) : "—";
-        document.getElementById("stock-rsi").textContent = stock.rsi ? stock.rsi.toFixed(1) : "—";
-        document.getElementById("stock-support").textContent = stock.support ? "$" + stock.support.toFixed(2) : "—";
-        document.getElementById("stock-resistance").textContent = stock.resistance ? "$" + stock.resistance.toFixed(2) : "—";
-        
-        // Determine trend based on moving averages
-        let trend = "Neutral";
-        if (stock.ma50 && stock.ma200) {
-            if (stock.price > stock.ma50 && stock.ma50 > stock.ma200) {
-                trend = "Strong Uptrend";
-            } else if (stock.price < stock.ma50 && stock.ma50 < stock.ma200) {
-                trend = "Strong Downtrend";
-            } else if (stock.price > stock.ma50) {
-                trend = "Uptrend";
-            } else if (stock.price < stock.ma50) {
-                trend = "Downtrend";
-            }
-        }
-        document.getElementById("stock-trend").textContent = trend;
-        
-        const bias = document.getElementById("stock-bias");
-        const summary = document.getElementById("stock-summary");
-        
-        if (stock.change > 0) {
-            bias.textContent = "Bullish";
-            bias.className = "dir-badge buy";
-        } else if (stock.change < 0) {
-            bias.textContent = "Bearish";
-            bias.className = "dir-badge sell";
-        } else {
-            bias.textContent = "Neutral";
-            bias.className = "dir-badge neutral";
-        }
-        
-        summary.textContent = stock.symbol || "—";
-        
-        // Add analysis details
-        const details = document.getElementById("stock-analysis-details");
-        let analysis = "";
-        
-        if (stock.pe_ratio && stock.pe_ratio > 25) {
-            analysis += "<p>⚠️ High P/E ratio may indicate overvaluation.</p>";
-        } else if (stock.pe_ratio && stock.pe_ratio < 15) {
-            analysis += "<p>✅ Low P/E ratio may indicate undervaluation.</p>";
-        }
-        
-        if (stock.week52_high && stock.price && stock.price > stock.week52_high * 0.9) {
-            analysis += "<p>📈 Trading near 52-week high - strong momentum.</p>";
-        } else if (stock.week52_low && stock.price && stock.price < stock.week52_low * 1.1) {
-            analysis += "<p>📉 Trading near 52-week low - potential value opportunity.</p>";
-        }
-        
-        if (stock.volume && stock.avg_volume && stock.volume > stock.avg_volume * 1.5) {
-            analysis += "<p>🔥 High volume trading - increased interest.</p>";
-        }
-        
-        if (stock.rsi) {
-            if (stock.rsi > 70) {
-                analysis += "<p>🔴 RSI above 70 - potentially overbought.</p>";
-            } else if (stock.rsi < 30) {
-                analysis += "<p>🟢 RSI below 30 - potentially oversold.</p>";
-            }
-        }
-        
-        if (stock.ma50 && stock.price > stock.ma50) {
-            analysis += "<p>✅ Price above 50-day MA - bullish short-term.</p>";
-        } else if (stock.ma50 && stock.price < stock.ma50) {
-            analysis += "<p>❌ Price below 50-day MA - bearish short-term.</p>";
-        }
-        
-        details.innerHTML = analysis || "<p>Standard trading conditions.</p>";
-    }
-
-    function formatVolume(volume) {
-        if (volume >= 1000000) {
-            return (volume / 1000000).toFixed(2) + "M";
-        } else if (volume >= 1000) {
-            return (volume / 1000).toFixed(2) + "K";
-        }
-        return volume.toString();
-    }
-
-    function formatMarketCap(marketCap) {
-        if (marketCap >= 1000000000000) {
-            return "$" + (marketCap / 1000000000000).toFixed(2) + "T";
-        } else if (marketCap >= 1000000000) {
-            return "$" + (marketCap / 1000000000).toFixed(2) + "B";
-        } else if (marketCap >= 1000000) {
-            return "$" + (marketCap / 1000000).toFixed(2) + "M";
-        }
-        return "$" + marketCap.toFixed(2);
-    }
-
-    async function runStockAnalysis() {
-        const symbol = currentSymbol();
-        if (!symbol) {
-            alert("Open a market on the chart first.");
-            return;
-        }
-        
-        runStockBtn.disabled = true;
-        runStockBtn.textContent = "Analyzing...";
-        
-        try {
-            // Extract exchange from symbol if available (e.g., NASDAQ:AAPL)
-            let exchange = "NASDAQ";
-            let cleanSymbol = symbol;
-            
-            if (symbol.includes(":")) {
-                const parts = symbol.split(":");
-                exchange = parts[0];
-                cleanSymbol = parts[1];
-            }
-            
-            // Call the stock ticker API to get current data
-            const res = await fetch("/stocks/api/ticker/");
-            const data = await res.json();
-            
-            if (data.success && data.stocks) {
-                const stockData = data.stocks.find(s => s.symbol === cleanSymbol);
-                
-                if (stockData) {
-                    // Calculate technical indicators
-                    const price = stockData.price;
-                    const ma50 = price * (0.95 + Math.random() * 0.1);
-                    const ma200 = price * (0.85 + Math.random() * 0.2);
-                    const rsi = 30 + Math.random() * 40;
-                    const support = price * 0.95;
-                    const resistance = price * 1.05;
-                    
-                    paintStockAnalysis({
-                        stock: {
-                            symbol: cleanSymbol,
-                            price: stockData.price,
-                            change: stockData.change_percent,
-                            volume: stockData.volume,
-                            high: stockData.high,
-                            low: stockData.low,
-                            market_cap: stockData.price * 1000000000, // Simulated market cap
-                            pe_ratio: Math.random() * 40 + 10, // Simulated P/E ratio
-                            week52_high: stockData.price * (1 + Math.random() * 0.5),
-                            week52_low: stockData.price * (1 - Math.random() * 0.3),
-                            avg_volume: stockData.volume * (0.8 + Math.random() * 0.4),
-                            ma50: ma50,
-                            ma200: ma200,
-                            rsi: rsi,
-                            support: support,
-                            resistance: resistance
-                        }
-                    });
-                } else {
-                    alert("Stock data not found for " + cleanSymbol);
-                }
-            } else {
-                alert("Could not fetch stock data");
-            }
-        } catch (err) {
-            console.error("Stock analysis error:", err);
-            alert("Could not reach the stock analysis API.");
-        } finally {
-            runStockBtn.disabled = false;
-            runStockBtn.textContent = "Full Stock Analysis";
-        }
-    }
-
-    if (runStockBtn) runStockBtn.addEventListener("click", runStockAnalysis);
+    // Stock analysis functions removed - gap analysis tab removed from deriv chart panel
+    // Stock analysis should be implemented separately for stock charts
 
     function addMessage(role, text) {
         const div = document.createElement("div");
         div.className = "brain-msg brain-msg-" + (role === "user" ? "user" : "ai");
-        div.textContent = text;
+        
+        if (role === "ai" && text === "thinking") {
+            div.classList.add("brain-msg-thinking");
+            div.innerHTML = '<span class="thinking-indicator"><span></span><span></span><span></span></span>';
+        } else {
+            div.textContent = text;
+        }
+        
         messages.appendChild(div);
         messages.scrollTop = messages.scrollHeight;
         return div;
     }
 
+    // Prevent voice button from triggering form submission
+    if (voiceBtn) {
+        voiceBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+    }
+
     async function send(message) {
+        if (!message || message.trim() === "") {
+            return;
+        }
+        
+        const payload = chartPayload();
+        const validation = validateChartPayload(payload);
+        
+        if (!validation.valid) {
+            addMessage("ai", "⚠ " + validation.error + " Please select a market on the chart first.");
+            return;
+        }
+        
         addMessage("user", message);
         history.push({ role: "user", content: message });
-        const thinking = addMessage("ai", "…");
-        thinking.classList.add("brain-msg-thinking");
-        const payload = chartPayload();
+        const thinking = addMessage("ai", "thinking");
         payload.message = message;
         payload.history = history.slice(0, -1);
 
@@ -875,6 +792,11 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
             const data = await res.json();
             thinking.remove();
             if (data.error) {
@@ -885,8 +807,9 @@
                 window.aiChartActions.applyActions(data.actions || []);
             }
         } catch (e) {
+            console.error("Chat error:", e);
             thinking.remove();
-            addMessage("ai", "⚠ Couldn't reach the AI backend — check the server is running.");
+            addMessage("ai", "⚠ Couldn't reach the AI backend — check the server is running and your internet connection.");
         }
     }
 
@@ -912,11 +835,22 @@
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             recordingChunks = [];
+            recordingStartTime = Date.now();
             recorder = new MediaRecorder(stream);
+            
+            // Start recording timer
+            recordingTimer = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                setVoiceStatus(`Recording… ${minutes}:${seconds.toString().padStart(2, '0')} — Click to stop`);
+            }, 1000);
+            
             recorder.ondataavailable = (event) => {
                 if (event.data.size) recordingChunks.push(event.data);
             };
             recorder.onstop = async () => {
+                clearInterval(recordingTimer);
                 stream.getTracks().forEach((track) => track.stop());
                 voiceBtn.classList.remove("is-recording");
                 voiceBtn.disabled = true;
@@ -939,7 +873,7 @@
             };
             recorder.start();
             voiceBtn.classList.add("is-recording");
-            setVoiceStatus("Listening… click the microphone to stop.");
+            setVoiceStatus("Recording… 0:00 — Click to stop");
         } catch (error) {
             setVoiceStatus("Microphone access was denied or unavailable.");
         }

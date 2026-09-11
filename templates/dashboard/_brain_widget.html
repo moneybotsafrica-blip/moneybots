@@ -16,7 +16,6 @@
     <div class="brain-tabs">
         <button type="button" class="brain-tab active" id="brain-tab-insight" data-tab="insight">Insight</button>
         <button type="button" class="brain-tab" id="brain-tab-analysis" data-tab="analysis">Analysis</button>
-        <button type="button" class="brain-tab" id="brain-tab-gaps" data-tab="gaps">Gap Analysis</button>
         <button type="button" class="brain-tab" id="brain-tab-chat" data-tab="chat">Chat</button>
     </div>
 
@@ -57,7 +56,21 @@
                     <button type="button" class="ai-news-back-btn" id="ai-news-back-btn">← Back to Markets</button>
                     <div class="ai-news-empty">Select a market to see related economic events.</div>
                 </div>
-                <button type="button" class="ask-ai-btn" id="analyze-news-btn" style="display:none;">Analyze Market News</button>
+                <div class="ai-news-actions">
+                    <form class="brain-input-row news-input-row" id="news-form" style="display:none;">
+                        <button type="button" class="brain-attach" aria-label="Attach files" title="Attach files">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                        <input type="text" id="news-input" placeholder="Ask anything" autocomplete="off" />
+                        <button type="button" class="brain-voice" id="brain-voice-news" aria-label="Record voice for news analysis" title="Record voice for news analysis">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
+                        </button>
+                        <button type="submit" class="brain-send" aria-label="Send">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                        </button>
+                    </form>
+                    <button type="button" class="ask-ai-btn" id="analyze-news-btn" style="display:none;">Analyze Market News</button>
+                </div>
             </div>
 
             <button type="button" class="ask-ai-btn" id="ask-ai-btn">Ask AI about this chart →</button>
@@ -83,69 +96,6 @@
                 </div>
                 <p class="ai-analysis-setup" id="ai-analysis-setup"></p>
                 <p class="ai-analysis-risks" id="ai-analysis-risks"></p>
-            </div>
-        </div>
-    </div>
-
-    <div class="brain-tab-panel" id="brain-panel-gaps" hidden>
-        <div class="ai-gaps-panel">
-            <button type="button" class="ask-ai-btn" id="run-gap-analysis">Analyze Stock Gaps</button>
-            <button type="button" class="ask-ai-btn" id="run-stock-analysis">Full Stock Analysis</button>
-            <div id="gap-analysis-status" class="ai-analysis-status">Detects price gaps in stock historical data.</div>
-            <div class="ai-analysis-card" id="gap-analysis-card" hidden>
-                <div class="ai-insight-headline">
-                    <span class="dir-badge neutral" id="gap-bias">—</span>
-                    <span id="gap-summary">—</span>
-                </div>
-                <div class="ai-metric-grid">
-                    <div class="ai-metric"><span class="ai-metric-label">Total Gaps</span><span class="ai-metric-value" id="gap-total">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Gap Ups</span><span class="ai-metric-value" id="gap-ups">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Gap Downs</span><span class="ai-metric-value" id="gap-downs">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Fill Rate</span><span class="ai-metric-value" id="gap-fill-rate">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Avg Gap Size</span><span class="ai-metric-value" id="gap-avg-size">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Avg Gap %</span><span class="ai-metric-value" id="gap-avg-pct">—</span></div>
-                </div>
-                <div class="gap-table-container">
-                    <table class="gap-table">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Type</th>
-                                <th>Size</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gap-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            
-            <div class="ai-analysis-card" id="stock-analysis-card" hidden>
-                <div class="ai-insight-headline">
-                    <span class="dir-badge neutral" id="stock-bias">—</span>
-                    <span id="stock-summary">—</span>
-                </div>
-                <div class="ai-metric-grid">
-                    <div class="ai-metric"><span class="ai-metric-label">Current Price</span><span class="ai-metric-value" id="stock-price">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Day Change</span><span class="ai-metric-value" id="stock-change">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Volume</span><span class="ai-metric-value" id="stock-volume">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">High</span><span class="ai-metric-value" id="stock-high">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Low</span><span class="ai-metric-value" id="stock-low">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Market Cap</span><span class="ai-metric-value" id="stock-marketcap">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">P/E Ratio</span><span class="ai-metric-value" id="stock-pe">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">52W High</span><span class="ai-metric-value" id="stock-52high">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">52W Low</span><span class="ai-metric-value" id="stock-52low">—</span></div>
-                </div>
-                <div class="ai-metric-grid">
-                    <div class="ai-metric"><span class="ai-metric-label">MA 50</span><span class="ai-metric-value" id="stock-ma50">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">MA 200</span><span class="ai-metric-value" id="stock-ma200">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">RSI (14)</span><span class="ai-metric-value" id="stock-rsi">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Support</span><span class="ai-metric-value" id="stock-support">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Resistance</span><span class="ai-metric-value" id="stock-resistance">—</span></div>
-                    <div class="ai-metric"><span class="ai-metric-label">Trend</span><span class="ai-metric-value" id="stock-trend">—</span></div>
-                </div>
-                <div class="stock-analysis-details" id="stock-analysis-details"></div>
             </div>
         </div>
     </div>

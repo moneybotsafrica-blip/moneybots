@@ -30,7 +30,12 @@ def relevant_news_api(request):
     market_name = request.GET.get("market_name", "")
     events, currencies, is_live = relevant_events(symbol, market_name)
     now = datetime.now(timezone.utc)
+    
+    # Determine data source status
+    status = "live" if is_live else "cached" if events else "unavailable"
+    
     return JsonResponse({
+        "status": status,
         "is_live": is_live,
         "symbol": symbol,
         "currencies": currencies,
