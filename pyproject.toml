@@ -1,2 +1,25 @@
+[project]
+name = "deriv-platform"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "Django>=5.0,<5.3",
+    "dj-database-url>=2.0",
+    "psycopg[binary]>=3.1",
+    "channels>=4.1",
+    "channels-redis>=4.2",
+    "daphne>=4.1",
+    "whitenoise>=6.0",
+    "websockets>=12.0",
+    "pandas>=2.2",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    "aiohttp>=3.9",
+    "feedparser>=6.0",
+    "django-allauth>=0.60.0",
+    "pytz>=2023.3",
+    "numpy>=1.24.0",
+]
+
 [tool.vercel]
 entrypoint = "deriv_platform.wsgi:application"
