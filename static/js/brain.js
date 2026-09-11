@@ -29,6 +29,10 @@
     const input = document.getElementById("brain-input");
     const voiceBtn = document.getElementById("brain-voice");
     const voiceStatus = document.getElementById("brain-voice-status");
+    const voiceMode = document.getElementById("brain-voice-mode");
+    const voiceModeMic = document.getElementById("brain-voice-mode-mic");
+    const voiceModeClose = document.getElementById("brain-voice-mode-close");
+    const voiceModeStatus = document.getElementById("brain-voice-mode-status");
     const symbolLabel = document.getElementById("brain-current-symbol");
 
     const tabs = panel.querySelectorAll(".brain-tab");
@@ -45,6 +49,7 @@
     let recordingChunks = [];
     let recordingStartTime = null;
     let recordingTimer = null;
+    let voiceModeActive = false;
     
     // Technical indicator mapping for TradingView
     const STUDY_MAP = {
@@ -767,7 +772,22 @@
         });
     }
 
-    async function send(message) {
+    function speakReply(text) {
+        if (!text || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+            return Promise.resolve();
+        }
+        window.speechSynthesis.cancel();
+        return new Promise((resolve) => {
+            const utterance = new SpeechSynthesisUtterance(text.replace(/```[\s\S]*?```/g, ""));
+            utterance.rate = 1.02;
+            utterance.pitch = 1;
+            utterance.onend = resolve;
+            utterance.onerror = resolve;
+            window.speechSynthesis.speak(utterance);
+        });
+    }
+
+    async function send(message, voiceReply = false) {
         if (!message || message.trim() === "") {
             return;
         }
@@ -805,11 +825,17 @@
                 addMessage("ai", data.reply);
                 history.push({ role: "assistant", content: data.reply });
                 window.aiChartActions.applyActions(data.actions || []);
+                if (voiceReply) {
+                    setVoiceModeStatus("Speaking...");
+                    await speakReply(data.reply);
+                    exitVoiceMode();
+                }
             }
         } catch (e) {
             console.error("Chat error:", e);
             thinking.remove();
             addMessage("ai", "⚠ Couldn't reach the AI backend — check the server is running and your internet connection.");
+            if (voiceReply) exitVoiceMode();
         }
     }
 
@@ -827,9 +853,29 @@
         voiceStatus.textContent = message;
     }
 
+    function setVoiceModeStatus(message) {
+        if (voiceModeStatus) voiceModeStatus.textContent = message;
+        setVoiceStatus(message);
+    }
+
+    function enterVoiceMode() {
+        voiceModeActive = true;
+        panel.classList.add("voice-mode-open");
+        voiceMode.hidden = false;
+        setVoiceModeStatus("Tap the microphone to speak");
+    }
+
+    function exitVoiceMode() {
+        voiceModeActive = false;
+        panel.classList.remove("voice-mode-open");
+        voiceMode.hidden = true;
+        if (recorder && recorder.state === "recording") recorder.stop();
+        setVoiceStatus("");
+    }
+
     async function startRecording() {
         if (!navigator.mediaDevices || !window.MediaRecorder) {
-            setVoiceStatus("Voice recording is not supported by this browser.");
+            setVoiceModeStatus("Voice recording is not supported by this browser.");
             return;
         }
         try {
@@ -843,7 +889,7 @@
                 const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
                 const minutes = Math.floor(elapsed / 60);
                 const seconds = elapsed % 60;
-                setVoiceStatus(`Recording… ${minutes}:${seconds.toString().padStart(2, '0')} — Click to stop`);
+                setVoiceModeStatus(`Listening… ${minutes}:${seconds.toString().padStart(2, '0')}`);
             }, 1000);
             
             recorder.ondataavailable = (event) => {
@@ -853,8 +899,9 @@
                 clearInterval(recordingTimer);
                 stream.getTracks().forEach((track) => track.stop());
                 voiceBtn.classList.remove("is-recording");
+                if (voiceModeMic) voiceModeMic.classList.remove("is-recording");
                 voiceBtn.disabled = true;
-                setVoiceStatus("Transcribing…");
+                setVoiceModeStatus("Thinking…");
                 try {
                     const blob = new Blob(recordingChunks, { type: recorder.mimeType || "audio/webm" });
                     const formData = new FormData();
@@ -862,27 +909,32 @@
                     const response = await fetch("/api/ai/transcribe/", { method: "POST", body: formData });
                     const data = await response.json();
                     if (!response.ok || data.error) throw new Error(data.error || "Transcription failed.");
-                    input.value = data.text;
-                    input.focus();
-                    setVoiceStatus("Transcript ready. Review it, then send.");
+                    setVoiceModeStatus("Thinking…");
+                    await send(data.text, true);
                 } catch (error) {
-                    setVoiceStatus(error.message || "Could not transcribe the recording.");
+                    setVoiceModeStatus(error.message || "Could not transcribe the recording.");
                 } finally {
                     voiceBtn.disabled = false;
                 }
             };
             recorder.start();
             voiceBtn.classList.add("is-recording");
-            setVoiceStatus("Recording… 0:00 — Click to stop");
+            if (voiceModeMic) voiceModeMic.classList.add("is-recording");
+            setVoiceModeStatus("Listening… 0:00");
         } catch (error) {
-            setVoiceStatus("Microphone access was denied or unavailable.");
+            setVoiceModeStatus("Microphone access was denied or unavailable.");
         }
     }
 
     if (voiceBtn) voiceBtn.addEventListener("click", () => {
+        enterVoiceMode();
+        if (!recorder || recorder.state !== "recording") startRecording();
+    });
+    if (voiceModeMic) voiceModeMic.addEventListener("click", () => {
         if (recorder && recorder.state === "recording") recorder.stop();
         else startRecording();
     });
+    if (voiceModeClose) voiceModeClose.addEventListener("click", exitVoiceMode);
 
     document.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && open) setOpen(false);

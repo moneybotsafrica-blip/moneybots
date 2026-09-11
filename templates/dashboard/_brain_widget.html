@@ -19,6 +19,16 @@
         <button type="button" class="brain-tab" id="brain-tab-chat" data-tab="chat">Chat</button>
     </div>
 
+    <div class="brain-voice-mode" id="brain-voice-mode" hidden>
+        <div class="brain-voice-orb" aria-hidden="true"><span></span></div>
+        <div class="brain-voice-mode-title">Voice AI</div>
+        <div class="brain-voice-mode-status" id="brain-voice-mode-status" role="status" aria-live="polite">Tap the microphone to speak</div>
+        <button type="button" class="brain-voice-mode-mic" id="brain-voice-mode-mic" aria-label="Start voice recording" title="Start voice recording">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
+        </button>
+        <button type="button" class="brain-voice-mode-close" id="brain-voice-mode-close">Back to chat</button>
+    </div>
+
     <div class="brain-tab-panel" id="brain-panel-insight">
         <div class="scroll-panel ai-insight-panel">
             <div class="ai-insight-card" id="ai-insight-card">
