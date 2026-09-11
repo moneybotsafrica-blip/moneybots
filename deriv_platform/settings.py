@@ -36,9 +36,33 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
-# Ensure at least basic hosts are set for Vercel
-if IS_VERCEL and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = [".vercel.app", "moneybots.vercel.app"]
+# Vercel preview URLs (moneybots-xxxxx-team.vercel.app) 400 if ALLOWED_HOSTS
+# is set in the dashboard to only the production hostname.
+if IS_VERCEL:
+    for host in (
+        ".vercel.app",
+        "moneybots.vercel.app",
+        os.getenv("VERCEL_URL", ""),
+        os.getenv("VERCEL_BRANCH_URL", ""),
+        os.getenv("VERCEL_PROJECT_PRODUCTION_URL", ""),
+    ):
+        host = host.strip()
+        if host and host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
+
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    CSRF_TRUSTED_ORIGINS = ["https://*.vercel.app"]
+    for origin_host in (
+        os.getenv("VERCEL_URL", ""),
+        os.getenv("VERCEL_BRANCH_URL", ""),
+        os.getenv("VERCEL_PROJECT_PRODUCTION_URL", ""),
+        "moneybots.vercel.app",
+    ):
+        origin_host = origin_host.strip()
+        if origin_host:
+            origin = f"https://{origin_host}"
+            if origin not in CSRF_TRUSTED_ORIGINS:
+                CSRF_TRUSTED_ORIGINS.append(origin)
 
 # Log production configuration without exposing secret values.
 if IS_PRODUCTION:
