@@ -1,23 +1,9 @@
 import os
-import sys
-import logging
-
-# Configure logging for debugging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 from django.core.wsgi import get_wsgi_application
+
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "deriv_platform.settings")
 
-logger.info("Initializing Django WSGI application...")
-
-app = get_wsgi_application()
-application = app
-
-# Vercel expects the WSGI application to be exported as "handler"
-handler = application
-
-logger.info("Django WSGI application initialized successfully")
+# Vercel requires a module-level `app` or `application` assignment (not inside try/except).
+application = get_wsgi_application()
+app = application

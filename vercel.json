@@ -1,26 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "deriv_platform/wsgi.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "15mb"
-      }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "deriv_platform/wsgi.py": {
+      "maxDuration": 60
     }
-  ],
-  "routes": [
-    {
-      "src": "/static/(.*)",
-      "dest": "/static/$1"
-    },
-    {
-      "src": "/media/(.*)",
-      "dest": "/media/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "deriv_platform/wsgi.py"
-    }
-  ]
+  }
 }
