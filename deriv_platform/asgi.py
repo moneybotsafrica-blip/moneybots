@@ -1,7 +1,5 @@
 import os
 
-from channels.auth import AuthMiddlewareStack
-from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "deriv_platform.settings")
@@ -13,13 +11,22 @@ from deriv_platform.vercel_runtime import apply_vercel_migrations  # noqa: E402
 
 apply_vercel_migrations()
 
-import analysis.routing  # noqa: E402
+# Top-level `application` is required for Vercel. Do not wrap it in
+# ProtocolTypeRouter there — Vercel sends ASGI lifespan events and
+# Channels raises, which becomes GET / 500.
+application = django_asgi_app
 
-application = ProtocolTypeRouter(
-    {
-        "http": django_asgi_app,
-        "websocket": AuthMiddlewareStack(
-            URLRouter(analysis.routing.websocket_urlpatterns)
-        ),
-    }
-)
+if not os.environ.get("VERCEL"):
+    from channels.auth import AuthMiddlewareStack
+    from channels.routing import ProtocolTypeRouter, URLRouter
+
+    import analysis.routing  # noqa: E402
+
+    application = ProtocolTypeRouter(
+        {
+            "http": django_asgi_app,
+            "websocket": AuthMiddlewareStack(
+                URLRouter(analysis.routing.websocket_urlpatterns)
+            ),
+        }
+    )

@@ -155,10 +155,13 @@ if DATABASE_URL:
         )
     }
 elif IS_VERCEL:
+    import tempfile
+    from pathlib import Path
+
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": "/tmp/deriv.sqlite3",
+            "NAME": str(Path(tempfile.gettempdir()) / "deriv.sqlite3"),
         }
     }
 else:
