@@ -4,29 +4,52 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "deriv_platform.settings")
 
-# django_asgi_app must be created before importing anything that touches models
 django_asgi_app = get_asgi_application()
 
-from deriv_platform.vercel_runtime import apply_vercel_migrations  # noqa: E402
+_migrated = False
 
-apply_vercel_migrations()
 
-# Top-level `application` is required for Vercel. Do not wrap it in
-# ProtocolTypeRouter there — Vercel sends ASGI lifespan events and
-# Channels raises, which becomes GET / 500.
-application = django_asgi_app
+async def _application(scope, receive, send):
+    """Vercel (and Uvicorn) send lifespan before HTTP.
 
-if not os.environ.get("VERCEL"):
-    from channels.auth import AuthMiddlewareStack
-    from channels.routing import ProtocolTypeRouter, URLRouter
+    Django's ASGIHandler only accepts scope type ``http`` and otherwise
+    raises, which shows up as a 6ms GET / 500 on Route /django.
+    """
+    global _migrated
+    if scope["type"] == "lifespan":
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+        return
+    if not _migrated:
+        from deriv_platform.vercel_runtime import apply_vercel_migrations
 
-    import analysis.routing  # noqa: E402
+        apply_vercel_migrations()
+        _migrated = True
+    await django_asgi_app(scope, receive, send)
 
-    application = ProtocolTypeRouter(
-        {
-            "http": django_asgi_app,
-            "websocket": AuthMiddlewareStack(
-                URLRouter(analysis.routing.websocket_urlpatterns)
-            ),
-        }
-    )
+
+async def _application(scope, receive, send):
+    """Vercel (and Uvicorn) send lifespan before HTTP.
+
+    Django's ASGIHandler only accepts scope type ``http`` and otherwise
+    raises, which shows up as a 6ms GET / 500 on Route /django.
+    """
+    if scope["type"] == "lifespan":
+        while True:
+            message = await receive()
+            if message["type"] == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif message["type"] == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+        return
+    await django_asgi_app(scope, receive, send)
+
+
+application = _application
+app = application

@@ -116,10 +116,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = "deriv_platform.urls"
 
 WSGI_APPLICATION = "deriv_platform.wsgi.application"
-# Vercel uses ASGI when this is set; Channels' router 500s on lifespan.
-# Keep ASGI only for local runserver/daphne.
-if not IS_VERCEL:
-    ASGI_APPLICATION = "deriv_platform.asgi.application"
+ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 TEMPLATES = [
     {
