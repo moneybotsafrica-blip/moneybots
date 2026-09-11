@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import path, include
 from django.shortcuts import redirect
 
@@ -7,7 +8,12 @@ def google_login_redirect(request):
     process = request.GET.get('process', 'login')
     return redirect(f'/accounts/social/google/login/?process={process}')
 
+def healthz(_request):
+    return HttpResponse("ok", content_type="text/plain")
+
+
 urlpatterns = [
+    path("healthz", healthz),
     path("admin/", admin.site.urls),
     path("accounts/", include("allauth.urls")),
     path("accounts/google/login/", google_login_redirect, name="google_login"),
