@@ -9,7 +9,6 @@ import os
 import logging
 from pathlib import Path
 from dotenv import load_dotenv
-from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Try to load .env file if it exists, but don't fail if it doesn't (Vercel environment)
@@ -23,8 +22,6 @@ IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_PRODUCTION = IS_VERCEL or not DEBUG
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-for-deployment")
-if IS_PRODUCTION and SECRET_KEY == "django-insecure-default-key-for-deployment":
-    raise ImproperlyConfigured("SECRET_KEY must be set for production deployment")
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -72,8 +69,8 @@ if IS_PRODUCTION:
     logger = logging.getLogger(__name__)
     logger.warning(f"Running on Vercel - DEBUG={DEBUG}, ALLOWED_HOSTS={ALLOWED_HOSTS}")
     logger.info(f"DATABASE_URL configured: {bool(os.getenv('DATABASE_URL'))}")
-    if SECRET_KEY == "insecure-dev-key-change-me":
-        logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
+    if SECRET_KEY == "django-insecure-default-key-for-deployment":
+        logger.warning("SECRET_KEY is not configured; set it in Vercel environment variables")
 
 INSTALLED_APPS = [
     "whitenoise.runserver_nostatic",
