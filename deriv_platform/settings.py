@@ -17,8 +17,8 @@ env_path = BASE_DIR / ".env"
 if env_path.exists():
     load_dotenv(env_path, override=True)
 
-# Default to False in production (Vercel), True for local development
-DEBUG = os.getenv("DEBUG", "False") == "True"
+# Match the last working deploy: DEBUG defaults on unless explicitly disabled.
+DEBUG = os.getenv("DEBUG", "True") == "True"
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_PRODUCTION = IS_VERCEL or not DEBUG
 
@@ -77,6 +77,7 @@ if IS_PRODUCTION:
         logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
 
 INSTALLED_APPS = [
+    "daphne",
     "whitenoise.runserver_nostatic",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -85,6 +86,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "channels",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -97,10 +99,6 @@ INSTALLED_APPS = [
     "assistant",
     "stocks",
 ]
-
-if not IS_PRODUCTION:
-    INSTALLED_APPS.insert(0, "daphne")
-    INSTALLED_APPS.insert(6, "channels")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -117,10 +115,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = "deriv_platform.urls"
 
 WSGI_APPLICATION = "deriv_platform.wsgi.application"
-
-# For Vercel deployment, use WSGI instead of ASGI.
-if not IS_PRODUCTION:
-    ASGI_APPLICATION = "deriv_platform.asgi.application"
+ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 TEMPLATES = [
     {
@@ -141,13 +136,11 @@ TEMPLATES = [
 # Analysis loop now runs integrated with the main Django server process
 # using Django's startup signal. InMemoryChannelLayer works fine for
 # single-process operation.
-# Only configure CHANNEL_LAYERS for local development (ASGI mode)
-if not IS_PRODUCTION:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels.layers.InMemoryChannelLayer",
-        }
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
     }
+}
 
 # Use SQLite locally and require PostgreSQL in production.
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -198,8 +191,7 @@ DERIV_WS_URL = os.getenv("DERIV_WS_URL") or f"wss://ws.derivws.com/websockets/v3
 # ---------------------------------------------------------------------------
 # Paper trading (no live execution anywhere in this project)
 # ---------------------------------------------------------------------------
-# Disabled for Vercel deployment to simplify configuration
-PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE") or "10") if not IS_PRODUCTION else 0
+PAPER_STARTING_BALANCE = float(os.getenv("PAPER_STARTING_BALANCE") or "10")
 
 # ---------------------------------------------------------------------------
 # Analysis engine
