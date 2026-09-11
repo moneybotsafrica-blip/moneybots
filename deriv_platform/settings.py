@@ -17,15 +17,14 @@ env_path = BASE_DIR / ".env"
 if env_path.exists():
     load_dotenv(env_path, override=True)
 
-# Match the last working deploy: DEBUG defaults on unless explicitly disabled.
-DEBUG = os.getenv("DEBUG", "True") == "True"
+# Production must be safe by default; local development can opt in to DEBUG.
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 IS_VERCEL = bool(os.environ.get("VERCEL"))
 IS_PRODUCTION = IS_VERCEL or not DEBUG
 
 SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-default-key-for-deployment")
-# Temporarily disabled strict validation to allow deployment
-# if IS_PRODUCTION and SECRET_KEY == "django-insecure-default-key-for-deployment":
-#     raise ImproperlyConfigured("SECRET_KEY must be set for production deployment")
+if IS_PRODUCTION and SECRET_KEY == "django-insecure-default-key-for-deployment":
+    raise ImproperlyConfigured("SECRET_KEY must be set for production deployment")
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -77,7 +76,6 @@ if IS_PRODUCTION:
         logger.error("SECURITY WARNING: Using default SECRET_KEY in production!")
 
 INSTALLED_APPS = [
-    "daphne",
     "whitenoise.runserver_nostatic",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -86,7 +84,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
-    "channels",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -99,6 +96,10 @@ INSTALLED_APPS = [
     "assistant",
     "stocks",
 ]
+
+if not IS_PRODUCTION:
+    INSTALLED_APPS.insert(0, "daphne")
+    INSTALLED_APPS.insert(6, "channels")
 
 MIDDLEWARE = [
     "deriv_platform.middleware.VercelExceptionMiddleware",
@@ -116,7 +117,9 @@ MIDDLEWARE = [
 ROOT_URLCONF = "deriv_platform.urls"
 
 WSGI_APPLICATION = "deriv_platform.wsgi.application"
-ASGI_APPLICATION = "deriv_platform.asgi.application"
+
+if not IS_PRODUCTION:
+    ASGI_APPLICATION = "deriv_platform.asgi.application"
 
 TEMPLATES = [
     {
@@ -137,11 +140,12 @@ TEMPLATES = [
 # Analysis loop now runs integrated with the main Django server process
 # using Django's startup signal. InMemoryChannelLayer works fine for
 # single-process operation.
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+if not IS_PRODUCTION:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
     }
-}
 
 # Use SQLite locally. On Vercel the deploy filesystem is read-only, so
 # SQLite must live in /tmp unless DATABASE_URL (Postgres) is set.

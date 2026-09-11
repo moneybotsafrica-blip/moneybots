@@ -27,6 +27,7 @@ from analysis.services.indicators import add_technical_indicators
 from markets.catalog import display_name, get_market_type
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_TRANSCRIPTION_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 
 SYSTEM_PROMPT = (
@@ -359,6 +360,43 @@ def chat(request):
         actions = parsed["actions"]
         reply = re.sub(r"```actions[\s\S]*?```", "", reply or "").strip() or reply
     return JsonResponse({"reply": reply, "actions": actions, "snapshot": snapshot})
+
+
+@csrf_exempt
+@require_POST
+def transcribe(request):
+    """Transcribe a short browser recording with Groq Whisper."""
+    audio = request.FILES.get("audio")
+    if not audio:
+        return JsonResponse({"error": "No audio recording was uploaded."}, status=400)
+    if audio.size > 10 * 1024 * 1024:
+        return JsonResponse({"error": "The recording is too large. Keep it under 10 MB."}, status=413)
+
+    groq_key, _ = _api_keys()
+    if not groq_key:
+        return JsonResponse({"error": "Groq speech recognition is not configured."}, status=503)
+
+    try:
+        response = requests.post(
+            GROQ_TRANSCRIPTION_URL,
+            headers={"Authorization": f"Bearer {groq_key}"},
+            files={"file": (audio.name or "recording.webm", audio.file, audio.content_type or "audio/webm")},
+            data={"model": "whisper-large-v3-turbo", "response_format": "json"},
+            timeout=45,
+        )
+        data = response.json()
+    except (requests.RequestException, ValueError) as exc:
+        logger.exception("Groq transcription request failed")
+        return JsonResponse({"error": f"Speech recognition failed: {exc}"}, status=502)
+
+    if response.status_code != 200:
+        error = data.get("error", {}).get("message", "Groq speech recognition failed.")
+        return JsonResponse({"error": error}, status=401 if response.status_code in (401, 403) else 502)
+
+    text = (data.get("text") or "").strip()
+    if not text:
+        return JsonResponse({"error": "No speech was detected."}, status=422)
+    return JsonResponse({"text": text})
 
 
 @csrf_exempt

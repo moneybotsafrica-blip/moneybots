@@ -20,6 +20,8 @@
     const messages = document.getElementById("brain-messages");
     const form = document.getElementById("brain-form");
     const input = document.getElementById("brain-input");
+    const voiceBtn = document.getElementById("brain-voice");
+    const voiceStatus = document.getElementById("brain-voice-status");
     const symbolLabel = document.getElementById("brain-current-symbol");
 
     const tabs = panel.querySelectorAll(".brain-tab");
@@ -32,6 +34,8 @@
 
     const history = [];
     let open = false;
+    let recorder = null;
+    let recordingChunks = [];
     const STUDY_MAP = {
         RSI: "Relative Strength Index",
         MACD: "MACD",
@@ -892,6 +896,58 @@
         if (!value) return;
         input.value = "";
         send(value);
+    });
+
+    function setVoiceStatus(message) {
+        if (!voiceStatus) return;
+        voiceStatus.hidden = !message;
+        voiceStatus.textContent = message;
+    }
+
+    async function startRecording() {
+        if (!navigator.mediaDevices || !window.MediaRecorder) {
+            setVoiceStatus("Voice recording is not supported by this browser.");
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recordingChunks = [];
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = (event) => {
+                if (event.data.size) recordingChunks.push(event.data);
+            };
+            recorder.onstop = async () => {
+                stream.getTracks().forEach((track) => track.stop());
+                voiceBtn.classList.remove("is-recording");
+                voiceBtn.disabled = true;
+                setVoiceStatus("Transcribing…");
+                try {
+                    const blob = new Blob(recordingChunks, { type: recorder.mimeType || "audio/webm" });
+                    const formData = new FormData();
+                    formData.append("audio", blob, "voice-question.webm");
+                    const response = await fetch("/api/ai/transcribe/", { method: "POST", body: formData });
+                    const data = await response.json();
+                    if (!response.ok || data.error) throw new Error(data.error || "Transcription failed.");
+                    input.value = data.text;
+                    input.focus();
+                    setVoiceStatus("Transcript ready. Review it, then send.");
+                } catch (error) {
+                    setVoiceStatus(error.message || "Could not transcribe the recording.");
+                } finally {
+                    voiceBtn.disabled = false;
+                }
+            };
+            recorder.start();
+            voiceBtn.classList.add("is-recording");
+            setVoiceStatus("Listening… click the microphone to stop.");
+        } catch (error) {
+            setVoiceStatus("Microphone access was denied or unavailable.");
+        }
+    }
+
+    if (voiceBtn) voiceBtn.addEventListener("click", () => {
+        if (recorder && recorder.state === "recording") recorder.stop();
+        else startRecording();
     });
 
     document.addEventListener("keydown", (e) => {

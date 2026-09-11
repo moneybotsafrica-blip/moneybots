@@ -158,8 +158,12 @@
         </div>
         <form class="brain-input-row" id="brain-form">
             <input type="text" id="brain-input" placeholder="Ask about this chart…" autocomplete="off" />
+            <button type="button" class="brain-voice" id="brain-voice" aria-label="Record a voice question" title="Record a voice question">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
+            </button>
             <button type="submit" class="brain-send" aria-label="Send">↑</button>
         </form>
+        <div class="brain-voice-status" id="brain-voice-status" role="status" aria-live="polite" hidden></div>
     </div>
 </aside>
 {% else %}
