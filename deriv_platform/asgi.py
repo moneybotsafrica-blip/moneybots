@@ -9,6 +9,10 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "deriv_platform.settings")
 # django_asgi_app must be created before importing anything that touches models
 django_asgi_app = get_asgi_application()
 
+from deriv_platform.vercel_runtime import apply_vercel_migrations  # noqa: E402
+
+apply_vercel_migrations()
+
 import analysis.routing  # noqa: E402
 
 application = ProtocolTypeRouter(

@@ -142,26 +142,48 @@ CHANNEL_LAYERS = {
     }
 }
 
-# Use SQLite locally and require PostgreSQL in production.
+# Use SQLite locally. On Vercel the deploy filesystem is read-only, so
+# SQLite must live in /tmp unless DATABASE_URL (Postgres) is set.
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
     import dj_database_url
     DATABASES = {
-        "default": dj_database_url.config(default=DATABASE_URL, conn_max_age=600, ssl_require=True)
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=0,
+            ssl_require="sslmode" not in DATABASE_URL.lower(),
+        )
+    }
+elif IS_VERCEL:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": "/tmp/deriv.sqlite3",
+        }
     }
 else:
-    # Temporarily disabled strict validation to allow deployment
-    # if IS_PRODUCTION:
-    #     raise ImproperlyConfigured(
-    #         "DATABASE_URL must be set for production deployment; "
-    #         "configure a PostgreSQL database in Vercel"
-    #     )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
+
+if IS_VERCEL:
+    SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
